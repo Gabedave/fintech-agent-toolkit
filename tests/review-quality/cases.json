@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "stale-state", "lines": [3, 5],
+      "required_invariants": ["state", "recovery-observability"],
+      "counterexample": {
+        "input": {"card": null, "restore_card": true},
+        "broken": {"card": "recovered-card", "debits": 0, "state": "awaiting_card"},
+        "fixed": {"card": "recovered-card", "debits": 1, "state": "complete"}
+      },
+      "neutral": {
+        "input": {"card": "existing-card", "restore_card": false},
+        "broken": {"card": "existing-card", "debits": 1, "state": "complete"},
+        "fixed": {"card": "existing-card", "debits": 1, "state": "complete"}
+      }
+    },
+    {
+      "id": "producer-contract", "lines": [2, 5],
+      "required_invariants": ["state", "external-outcome", "recovery-observability"],
+      "counterexample": {
+        "input": {"successful": true, "legacy": false},
+        "broken": {"classification": "terminal_failed"},
+        "fixed": {"classification": "review_required"}
+      },
+      "neutral": {
+        "input": {"successful": true, "legacy": true},
+        "broken": {"classification": "review_required"},
+        "fixed": {"classification": "review_required"}
+      }
+    },
+    {
+      "id": "paused-cleanup", "lines": [2, 4],
+      "required_invariants": ["state", "time", "recovery-observability"],
+      "counterexample": {
+        "input": {"enabled": false, "expired": true},
+        "broken": {"payload": "synthetic content", "sends": 0},
+        "fixed": {"payload": null, "sends": 0}
+      },
+      "neutral": {
+        "input": {"enabled": true, "expired": false},
+        "broken": {"payload": "synthetic content", "sends": 1},
+        "fixed": {"payload": "synthetic content", "sends": 1}
+      }
+    },
+    {
+      "id": "concurrent-ownership", "lines": [2, 6],
+      "required_invariants": ["state", "ownership", "transaction", "replay"],
+      "counterexample": {
+        "input": {"workers": ["alpha", "beta"]},
+        "broken": {"claims": 2, "single_owner": false, "stored_owner": true},
+        "fixed": {"claims": 1, "single_owner": true, "stored_owner": true}
+      },
+      "neutral": {
+        "input": {"workers": ["alpha"]},
+        "broken": {"claims": 1, "single_owner": true, "stored_owner": true},
+        "fixed": {"claims": 1, "single_owner": true, "stored_owner": true}
+      }
+    }
+  ]
+}

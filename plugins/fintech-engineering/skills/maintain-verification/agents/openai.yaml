@@ -1,0 +1,7 @@
+interface:
+  display_name: "Maintain Verification"
+  short_description: "Keep repository proof aligned with real behaviour"
+  default_prompt: "Use $maintain-verification to audit this repository verifier against current source and safe execution evidence."
+
+policy:
+  allow_implicit_invocation: true

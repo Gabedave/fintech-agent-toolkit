@@ -1,0 +1,7 @@
+interface:
+  display_name: "Reflect"
+  short_description: "Turn delivery friction into reviewed improvements"
+  default_prompt: "Use $reflect to propose evidence-backed workflow improvements from this completed task."
+
+policy:
+  allow_implicit_invocation: true

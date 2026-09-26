@@ -1,0 +1,20 @@
+{
+  "name": "gabedave",
+  "interface": {
+    "displayName": "Gabedave"
+  },
+  "plugins": [
+    {
+      "name": "fintech-engineering",
+      "source": {
+        "source": "local",
+        "path": "./plugins/fintech-engineering"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

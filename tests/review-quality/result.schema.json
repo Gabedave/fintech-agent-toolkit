@@ -1,0 +1,94 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "review_record", "findings", "limitations"],
+  "properties": {
+    "verdict": {"type": "string", "enum": ["ready", "not_ready", "incomplete"]},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "review_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "candidate_snapshot", "final_snapshot", "risk", "risk_rationale", "criteria", "invariants", "verification", "external_evidence", "decision_record", "remaining_risks", "reviewer_attempts", "repair_cycles", "independence", "consensus"],
+      "properties": {
+        "scope": {"type": "string"},
+        "candidate_snapshot": {"type": "string"},
+        "final_snapshot": {"type": "string"},
+        "risk": {"type": "string", "enum": ["low", "medium", "high"]},
+        "risk_rationale": {"type": "string"},
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["requirement", "changed_seam", "focused_evidence", "broad_evidence", "status"],
+            "properties": {
+              "requirement": {"type": "string"},
+              "changed_seam": {"type": "string"},
+              "focused_evidence": {"type": "string"},
+              "broad_evidence": {"type": "string"},
+              "status": {"type": "string", "enum": ["confirmed", "partial", "unverified", "failed"]}
+            }
+          }
+        },
+        "invariants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["area", "invariant", "authority", "changed_seam", "executable_evidence", "status"],
+            "properties": {
+              "area": {"type": "string", "enum": ["state", "ownership", "transaction", "external-outcome", "replay", "time", "recovery-observability"]},
+              "invariant": {"type": "string"},
+              "authority": {"type": "string"},
+              "changed_seam": {"type": "string"},
+              "executable_evidence": {"type": "string"},
+              "status": {"type": "string", "enum": ["confirmed", "not-applicable", "unverified", "failed"]}
+            }
+          }
+        },
+        "verification": {"type": "array", "items": {"type": "string"}},
+        "external_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "sources"],
+          "properties": {
+            "status": {"type": "string", "enum": ["not-required", "verified", "unverified"]},
+            "sources": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "decision_record": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reference"],
+          "properties": {
+            "status": {"type": "string", "enum": ["required", "skipped", "not-required", "unverified"]},
+            "reference": {"type": "string"}
+          }
+        },
+        "remaining_risks": {"type": "array", "items": {"type": "string"}},
+        "reviewer_attempts": {"type": "integer"},
+        "repair_cycles": {"type": "integer"},
+        "independence": {"type": "string", "enum": ["performed", "not-performed"]},
+        "consensus": {"type": "string", "enum": ["achieved", "not-achieved", "human-decision-required"]}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["file", "line", "severity", "explanation", "remediation", "reconciliation", "input", "observed", "expected"],
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "severity": {"type": "string", "enum": ["Critical", "Major", "Minor"]},
+          "explanation": {"type": "string"},
+          "remediation": {"type": "string"},
+          "reconciliation": {"type": "string", "enum": ["pending", "resolved-by-implementation", "resolved-by-evidence", "still-blocking", "downgraded", "human-decision-required"]},
+          "input": {"type": "string"},
+          "observed": {"type": "string"},
+          "expected": {"type": "string"}
+        }
+      }
+    }
+  }
+}

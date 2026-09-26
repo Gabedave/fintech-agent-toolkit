@@ -1,0 +1,2 @@
+# Python bytecode is generated locally, not part of the reviewed candidate.
+__pycache__/

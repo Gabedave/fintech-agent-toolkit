@@ -1,0 +1,7 @@
+interface:
+  display_name: "CI Babysit"
+  short_description: "Follow PR checks and repair real failures"
+  default_prompt: "Use $ci-babysit to follow this pull request's latest commit until it is honestly merge-ready."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "playbook",
+    "additional_playbooks",
+    "skills",
+    "repository_verifiers",
+    "authorized_actions",
+    "withheld_actions",
+    "skipped_steps",
+    "decision_records",
+    "pull_request_lifecycle",
+    "implementation_readiness",
+    "external_actions_performed"
+  ],
+  "properties": {
+    "implementation_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "risk_classification",
+        "proof_gate",
+        "scenario_classes",
+        "capability_preflight",
+        "synthetic_merge"
+      ],
+      "properties": {
+        "risk_classification": {
+          "type": "string",
+          "enum": ["high", "standard", "assess-before-edit", "not-applicable"]
+        },
+        "proof_gate": {
+          "type": "string",
+          "enum": [
+            "adversarial-tests-before-production-edit",
+            "proportionate-before-edit",
+            "classification-required-before-edit",
+            "not-applicable"
+          ]
+        },
+        "scenario_classes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "definitive-rejection",
+              "ambiguous-outcome",
+              "replay-idempotency",
+              "concurrent-ownership",
+              "state-identity-fencing"
+            ]
+          }
+        },
+        "capability_preflight": {
+          "type": "string",
+          "enum": ["repository-declared-before-verification", "not-applicable"]
+        },
+        "synthetic_merge": {
+          "type": "string",
+          "enum": ["required-before-push", "not-applicable"]
+        }
+      }
+    },
+    "pull_request_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default_branch_check", "base_selection", "ci_revision", "merge_gate"],
+      "properties": {
+        "default_branch_check": {
+          "type": "string",
+          "enum": ["required", "not-applicable"]
+        },
+        "base_selection": {
+          "type": "string",
+          "enum": ["repository-default", "explicit-user-or-ticket-override", "not-applicable"]
+        },
+        "ci_revision": {
+          "type": "string",
+          "enum": ["exact-latest-pr-head", "not-applicable"]
+        },
+        "merge_gate": {
+          "type": "string",
+          "enum": ["explicit-authorization-required", "not-applicable"]
+        }
+      }
+    },
+    "decision_records": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adr_disposition", "reason", "trail_disposition"],
+      "properties": {
+        "adr_disposition": {
+          "type": "string",
+          "enum": [
+            "required:owning-repository",
+            "not-required:none",
+            "assess-after-discovery:undetermined"
+          ]
+        },
+        "reason": { "type": "string" },
+        "trail_disposition": {
+          "type": "string",
+          "enum": [
+            "required:local",
+            "required:authorized-team-record",
+            "not-required:not-applicable"
+          ]
+        }
+      }
+    },
+    "playbook": {
+      "type": "string",
+      "enum": ["none", "investigation", "bug-fix", "feature", "refactor", "performance", "prototype", "verification-maintenance", "long-running", "ci-failure", "pull-request-preparation"]
+    },
+    "additional_playbooks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["investigation", "bug-fix", "feature", "refactor", "performance", "prototype", "verification-maintenance", "long-running", "ci-failure", "pull-request-preparation"]
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["fintech-mode", "how", "why", "blast-radius", "architect", "maintain-verification", "work-continuity", "pre-push-review", "ci-babysit", "reflect"]
+      }
+    },
+    "repository_verifiers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["verify-backend", "verify-mobile", "verify-admin"]
+      }
+    },
+    "authorized_actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["edit", "commit", "push", "open-pull-request", "merge", "deploy", "ticket-update", "team-message"]
+      }
+    },
+    "withheld_actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["edit", "commit", "push", "open-pull-request", "merge", "deploy"]
+      }
+    },
+    "skipped_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "reason"],
+        "properties": {
+          "step": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "external_actions_performed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["edit", "commit", "push", "open-pull-request", "merge", "deploy", "ticket-update", "team-message"]
+      }
+    }
+  }
+}

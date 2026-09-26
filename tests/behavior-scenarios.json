@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "historical-diagnosis",
+      "expected_decision_records": {
+        "adr_disposition": "not-required:none",
+        "trail_disposition": "not-required:not-applicable"
+      },
+      "prompt": "This is a read-only investigation, so implementation readiness is not applicable. Investigate why the backend login boundary was implemented this way. Explain the evidence and do not change any files.",
+      "expected_playbook": "investigation",
+      "expected_additional_playbooks": [],
+      "expected_skills": ["fintech-mode", "how", "why"],
+      "expected_verifiers": ["verify-backend"],
+      "expected_actions": [],
+      "expected_withheld_actions": ["edit", "commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "not-applicable",
+        "base_selection": "not-applicable",
+        "ci_revision": "not-applicable",
+        "merge_gate": "not-applicable"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "not-applicable",
+        "proof_gate": "not-applicable",
+        "scenario_classes": [],
+        "capability_preflight": "not-applicable",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["investigation"],
+        "required_playbooks": ["investigation"],
+        "optional_playbooks": [],
+        "optional_skills": [],
+        "repository_verifier_sets": [[], ["verify-backend"]]
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "cross-repository-contract-change",
+      "expected_decision_records": {
+        "adr_disposition": "required:owning-repository",
+        "trail_disposition": "required:local"
+      },
+      "prompt": "The KYC API and cross-repository contract boundary make this approved implementation high risk. Implement the change across the backend and mobile repositories. The current contract preserves a legacy-client compatibility constraint whose original rationale must be established before deciding what can change. Do not push or open a pull request.",
+      "expected_playbook": "feature",
+      "expected_additional_playbooks": [],
+      "expected_skills": ["fintech-mode", "architect", "blast-radius", "how", "maintain-verification", "pre-push-review", "why", "work-continuity"],
+      "expected_verifiers": ["verify-backend", "verify-mobile"],
+      "expected_actions": ["commit", "edit"],
+      "expected_withheld_actions": ["push", "open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "not-applicable",
+        "base_selection": "not-applicable",
+        "ci_revision": "not-applicable",
+        "merge_gate": "not-applicable"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "high",
+        "proof_gate": "adversarial-tests-before-production-edit",
+        "scenario_classes": [
+          "definitive-rejection",
+          "ambiguous-outcome",
+          "replay-idempotency",
+          "concurrent-ownership",
+          "state-identity-fencing"
+        ],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["feature"],
+        "required_playbooks": ["feature"],
+        "optional_playbooks": [],
+        "optional_skills": [],
+        "repository_verifier_sets": [
+          ["verify-backend"],
+          ["verify-backend", "verify-mobile"]
+        ]
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "stale-verifier-repair",
+      "expected_decision_records": {
+        "adr_disposition": "not-required:none",
+        "trail_disposition": "not-required:not-applicable"
+      },
+      "prompt": "Discovery is complete and classifies this verifier-only maintenance as standard risk: the repository verification map points at an old test, and production behavior is unchanged. Update the verifier to match the current feature boundary and verify the repair, but do not push it.",
+      "expected_playbook": "verification-maintenance",
+      "expected_additional_playbooks": [],
+      "expected_skills": ["fintech-mode", "how", "maintain-verification", "pre-push-review"],
+      "expected_verifiers": ["verify-backend"],
+      "expected_actions": ["commit", "edit"],
+      "expected_withheld_actions": ["push", "open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "not-applicable",
+        "base_selection": "not-applicable",
+        "ci_revision": "not-applicable",
+        "merge_gate": "not-applicable"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "standard",
+        "proof_gate": "proportionate-before-edit",
+        "scenario_classes": [],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["verification-maintenance"],
+        "required_playbooks": ["verification-maintenance"],
+        "optional_playbooks": [],
+        "optional_skills": [],
+        "repository_verifier_sets": [["verify-backend"]]
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "ci-follow-through",
+      "expected_decision_records": {
+        "adr_disposition": "assess-after-discovery:undetermined",
+        "trail_disposition": "required:local"
+      },
+      "prompt": "The specific fix and its risk are unknown until CI diagnosis, so use assess-before-edit and do not claim completed adversarial scenarios yet. Follow pull request 123 until its checks and reviews are finished, even if the work spans sessions. Diagnose failures, make the necessary fixes, and push the updates. Do not merge it.",
+      "expected_playbook": "ci-failure",
+      "expected_additional_playbooks": ["long-running"],
+      "expected_skills": ["fintech-mode", "ci-babysit", "how", "pre-push-review", "work-continuity"],
+      "expected_verifiers": ["verify-backend"],
+      "expected_actions": ["commit", "edit", "push"],
+      "expected_withheld_actions": ["open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "required",
+        "base_selection": "repository-default",
+        "ci_revision": "exact-latest-pr-head",
+        "merge_gate": "explicit-authorization-required"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "assess-before-edit",
+        "proof_gate": "classification-required-before-edit",
+        "scenario_classes": [],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "required-before-push"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["ci-failure", "long-running"],
+        "required_playbooks": ["ci-failure", "long-running"],
+        "optional_playbooks": ["bug-fix", "investigation", "pull-request-preparation"],
+        "optional_skills": [],
+        "repository_verifier_sets": [["verify-backend"]]
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "trivial-edit",
+      "expected_decision_records": {
+        "adr_disposition": "not-required:none",
+        "trail_disposition": "not-required:not-applicable"
+      },
+      "prompt": "This small mechanical documentation edit is outside implementation readiness, so do not claim capability preflight. Fix the spelling mistake in the README heading. Do not push the change.",
+      "expected_playbook": "none",
+      "expected_additional_playbooks": [],
+      "expected_skills": ["fintech-mode"],
+      "expected_verifiers": [],
+      "expected_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "not-applicable",
+        "base_selection": "not-applicable",
+        "ci_revision": "not-applicable",
+        "merge_gate": "not-applicable"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "not-applicable",
+        "proof_gate": "not-applicable",
+        "scenario_classes": [],
+        "capability_preflight": "not-applicable",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["none"],
+        "required_playbooks": ["none"],
+        "optional_playbooks": [],
+        "optional_skills": [],
+        "repository_verifier_sets": [[]]
+      },
+      "expected_min_skipped": 0
+    },
+    {
+      "id": "supersede-cross-repository-decision",
+      "prompt": "This replacement of the accepted KYC contract shared by backend and mobile is high risk. Implement separate per-check statuses to replace the single combined status contract. Compare the old decision with current requirements and preserve its rationale when documenting the replacement. Do not commit, push, or open a PR.",
+      "expected_playbook": "feature",
+      "expected_additional_playbooks": [],
+      "expected_skills": ["fintech-mode", "architect", "blast-radius", "how", "maintain-verification", "pre-push-review", "why", "work-continuity"],
+      "expected_verifiers": ["verify-backend", "verify-mobile"],
+      "expected_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "not-applicable",
+        "base_selection": "not-applicable",
+        "ci_revision": "not-applicable",
+        "merge_gate": "not-applicable"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "high",
+        "proof_gate": "adversarial-tests-before-production-edit",
+        "scenario_classes": [
+          "definitive-rejection",
+          "ambiguous-outcome",
+          "replay-idempotency",
+          "concurrent-ownership",
+          "state-identity-fencing"
+        ],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["feature"],
+        "required_playbooks": ["feature"],
+        "optional_playbooks": [],
+        "optional_skills": [],
+        "repository_verifier_sets": [["verify-backend"], ["verify-backend", "verify-mobile"]]
+      },
+      "expected_decision_records": {
+        "adr_disposition": "required:owning-repository",
+        "trail_disposition": "required:local"
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "repair-within-accepted-decision",
+      "prompt": "Discovery classifies this verifier-only repair as standard risk. Repair the verifier map's stale test path. The moved test still proves exactly the same behavior and the accepted repository decision already covers this verification strategy; do not change that strategy or any contract. Verify the repair. Do not commit or push.",
+      "expected_playbook": "verification-maintenance",
+      "expected_additional_playbooks": [],
+      "expected_skills": ["fintech-mode", "how", "maintain-verification", "pre-push-review"],
+      "expected_verifiers": ["verify-backend"],
+      "expected_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "not-applicable",
+        "base_selection": "not-applicable",
+        "ci_revision": "not-applicable",
+        "merge_gate": "not-applicable"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "standard",
+        "proof_gate": "proportionate-before-edit",
+        "scenario_classes": [],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["verification-maintenance"],
+        "required_playbooks": ["verification-maintenance"],
+        "optional_playbooks": [],
+        "optional_skills": ["why"],
+        "repository_verifier_sets": [["verify-backend"]]
+      },
+      "expected_decision_records": {
+        "adr_disposition": "not-required:none",
+        "trail_disposition": "not-required:not-applicable"
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "implementation-pr-ci",
+      "prompt": "Implement the approved high-risk backend payment retry ownership change and follow its pull request through CI across sessions, preserving a local continuity trail. The previously reviewed branch targeted develop, while the repository host identifies main as the default production branch. Do not merge or deploy.",
+      "expected_playbook": "feature",
+      "expected_additional_playbooks": ["long-running", "pull-request-preparation"],
+      "expected_skills": ["fintech-mode", "architect", "ci-babysit", "how", "pre-push-review", "work-continuity"],
+      "expected_verifiers": ["verify-backend"],
+      "expected_actions": ["commit", "edit", "open-pull-request", "push"],
+      "expected_withheld_actions": ["merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "required",
+        "base_selection": "repository-default",
+        "ci_revision": "exact-latest-pr-head",
+        "merge_gate": "explicit-authorization-required"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "high",
+        "proof_gate": "adversarial-tests-before-production-edit",
+        "scenario_classes": [
+          "definitive-rejection",
+          "ambiguous-outcome",
+          "replay-idempotency",
+          "concurrent-ownership",
+          "state-identity-fencing"
+        ],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "required-before-push"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["feature"],
+        "required_playbooks": ["feature", "long-running", "pull-request-preparation"],
+        "optional_playbooks": [],
+        "optional_skills": ["blast-radius", "maintain-verification", "why"],
+        "repository_verifier_sets": [["verify-backend"]]
+      },
+      "expected_decision_records": {
+        "adr_disposition": "required:owning-repository",
+        "trail_disposition": "required:local"
+      },
+      "expected_min_skipped": 1
+    },
+    {
+      "id": "explicit-release-target-pr",
+      "existing_pull_request": true,
+      "prompt": "Discovery is complete and classifies this as a standard-risk routine backend bug fix. Continue it in existing pull request 123 within the existing design; no contract or durable architecture decision changes. The incident plan explicitly requires release/2026-09 as the target branch. Do not follow CI, merge, or deploy.",
+      "expected_playbook": "bug-fix",
+      "expected_additional_playbooks": ["pull-request-preparation"],
+      "expected_skills": ["fintech-mode", "how", "pre-push-review"],
+      "expected_verifiers": ["verify-backend"],
+      "expected_actions": ["commit", "edit", "push"],
+      "expected_withheld_actions": ["open-pull-request", "merge", "deploy"],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "required",
+        "base_selection": "explicit-user-or-ticket-override",
+        "ci_revision": "not-applicable",
+        "merge_gate": "explicit-authorization-required"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "standard",
+        "proof_gate": "proportionate-before-edit",
+        "scenario_classes": [],
+        "capability_preflight": "repository-declared-before-verification",
+        "synthetic_merge": "required-before-push"
+      },
+      "routing_allowance": {
+        "primary_playbooks": ["bug-fix"],
+        "required_playbooks": ["bug-fix", "pull-request-preparation"],
+        "optional_playbooks": [],
+        "optional_skills": ["why"],
+        "repository_verifier_sets": [["verify-backend"]]
+      },
+      "expected_decision_records": {
+        "adr_disposition": "not-required:none",
+        "trail_disposition": "not-required:not-applicable"
+      },
+      "expected_min_skipped": 1
+    }
+  ]
+}

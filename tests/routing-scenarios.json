@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "diagnose-only",
+      "task_kind": "investigation",
+      "nontrivial": true,
+      "signals": [],
+      "authorized_actions": [],
+      "expected_withheld_actions": ["edit", "commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": [],
+      "expected_skills": ["how"],
+      "expected_playbook": "investigation"
+    },
+    {
+      "id": "historical-explanation",
+      "task_kind": "investigation",
+      "nontrivial": true,
+      "signals": ["historical_intent_material"],
+      "authorized_actions": [],
+      "expected_withheld_actions": ["edit", "commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": [],
+      "expected_skills": ["how", "why"],
+      "expected_playbook": "investigation"
+    },
+    {
+      "id": "cross-repository-api-feature",
+      "task_kind": "feature",
+      "nontrivial": true,
+      "signals": ["ownership_uncertain", "architecture_boundary", "candidate_change"],
+      "authorized_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": ["edit"],
+      "expected_skills": ["architect", "blast-radius", "how", "pre-push-review"],
+      "expected_playbook": "feature"
+    },
+    {
+      "id": "contested-high-risk-design",
+      "task_kind": "feature",
+      "nontrivial": true,
+      "signals": ["architecture_boundary", "candidate_change"],
+      "authorized_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": ["edit"],
+      "expected_skills": ["architect", "how", "pre-push-review"],
+      "expected_absent": ["interrogate"],
+      "expected_playbook": "feature"
+    },
+    {
+      "id": "stale-verifier-map",
+      "task_kind": "verification-maintenance",
+      "nontrivial": true,
+      "signals": ["verification_changed_or_stale", "candidate_change"],
+      "authorized_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": ["edit"],
+      "expected_skills": ["how", "maintain-verification", "pre-push-review"],
+      "expected_playbook": "verification-maintenance"
+    },
+    {
+      "id": "multi-repository-migration",
+      "task_kind": "feature",
+      "nontrivial": true,
+      "signals": ["ownership_uncertain", "historical_intent_material", "architecture_boundary", "long_running_or_handoff", "candidate_change"],
+      "authorized_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": ["edit"],
+      "expected_skills": ["architect", "blast-radius", "how", "pre-push-review", "why", "work-continuity"],
+      "expected_playbook": "feature"
+    },
+    {
+      "id": "performance-hillclimb",
+      "task_kind": "performance",
+      "nontrivial": true,
+      "signals": ["candidate_change", "long_running_or_handoff"],
+      "authorized_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": ["edit"],
+      "expected_skills": ["how", "pre-push-review", "work-continuity"],
+      "expected_playbook": "performance"
+    },
+    {
+      "id": "implementation-pr-ci-lifecycle",
+      "task_kind": "feature",
+      "nontrivial": true,
+      "signals": ["candidate_change", "pull_request_followthrough"],
+      "implementation_delivery": true,
+      "authorized_actions": [],
+      "expected_withheld_actions": ["merge", "deploy"],
+      "expected_actions": ["commit", "edit", "open-pull-request", "push"],
+      "expected_skills": ["ci-babysit", "how", "pre-push-review"],
+      "expected_playbook": "feature"
+    },
+    {
+      "id": "pull-request-ci-followthrough",
+      "task_kind": "ci-failure",
+      "nontrivial": true,
+      "signals": ["candidate_change", "pull_request_followthrough"],
+      "authorized_actions": ["commit", "edit", "push"],
+      "expected_withheld_actions": ["open-pull-request", "merge", "deploy"],
+      "expected_actions": ["commit", "edit", "push"],
+      "expected_skills": ["ci-babysit", "how", "pre-push-review"],
+      "expected_playbook": "ci-failure"
+    },
+    {
+      "id": "trivial-documentation-edit",
+      "task_kind": "none",
+      "nontrivial": false,
+      "signals": [],
+      "authorized_actions": ["edit"],
+      "expected_withheld_actions": ["commit", "push", "open-pull-request", "merge", "deploy"],
+      "expected_actions": ["edit"],
+      "expected_skills": [],
+      "expected_playbook": "none"
+    }
+  ]
+}

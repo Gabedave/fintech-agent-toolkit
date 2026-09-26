@@ -1,0 +1,36 @@
+{
+  "name": "fintech-engineering",
+  "version": "0.1.0",
+  "description": "Shared engineering workflows for fintech product repositories",
+  "author": {
+    "name": "Gabedave",
+    "url": "https://github.com/Gabedave"
+  },
+  "homepage": "https://github.com/Gabedave/fintech-agent-toolkit",
+  "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
+  "keywords": [
+    "fintech",
+    "engineering",
+    "verification",
+    "review",
+    "ci"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Fintech Engineering",
+    "shortDescription": "Evidence-backed workflows for fintech software",
+    "longDescription": "Codex workflows for understanding, designing, implementing, verifying, and reviewing fintech software across organizations.",
+    "developerName": "Gabedave",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use $fintech-mode automatically for non-trivial engineering tasks.",
+      "Let $fintech-mode route system explanation, historical evidence, and architecture when they apply.",
+      "Let $fintech-mode route verification maintenance and work continuity when they apply.",
+      "Use $ci-babysit to follow this pull request to merge-ready."
+    ]
+  }
+}

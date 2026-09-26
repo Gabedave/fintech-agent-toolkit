@@ -1,0 +1,28 @@
+name: Validate plugin
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python3 scripts/validate.py
+      - run: python3 scripts/evaluate.py
+      - run: python3 scripts/evaluate_behavior.py --check
+      - run: python3 scripts/evaluate_review_quality.py --check
+      - run: python3 -m unittest discover -s tests -p 'test_*.py'
