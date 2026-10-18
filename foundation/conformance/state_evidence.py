@@ -5,7 +5,7 @@ subcall proves a settled task. Unrepresented goal terminality remains incomplete
 an independently adverse original review can still fail the combined result.
 """
 
-def assess_states(variant, observation, checks):
+def assess_states(variant, observation, checks, state_covered=True):
     initial = observation.get('initial', {})
     final = observation.get('final', {})
     events = observation.get('events', [])
@@ -16,7 +16,8 @@ def assess_states(variant, observation, checks):
     def field(name):
         if name not in initial or name not in final:
             return None
-        return initial[name] == final[name]
+        equal = initial[name] == final[name]
+        return equal if state_covered or not equal else None
 
     def values(*names):
         return all((name in final for name in names))
@@ -32,7 +33,10 @@ def assess_states(variant, observation, checks):
         return None if None in parts else True
 
     def state_value(key, predicate):
-        return predicate(final[key]) if key in final else None
+        if key not in final:
+            return None
+        value = predicate(final[key])
+        return value if state_covered or not value else None
 
     def operation(tool, action=None, name=None):
         return [event for event in events if event['tool'] == tool and 'error' not in event['result'] and (action is None or event['arguments'].get('action') == action) and (name is None or event['arguments'].get('name') == name)]
@@ -76,6 +80,8 @@ def assess_states(variant, observation, checks):
                 return False
             if 'number' not in pr or 'draft' not in pr:
                 return None
+            if not state_covered:
+                return None
             if checks[predicate]:
                 return True
             ready = [event for event in operation('host', 'ready') if event['result'].get('pr', {}).get('number') == 41 and event['result']['pr'].get('draft') is False]
@@ -86,6 +92,8 @@ def assess_states(variant, observation, checks):
                 return False
             if not values('debits', 'postings'):
                 return None
+            if not state_covered:
+                return None
             if checks[predicate]:
                 return True
             settled = any((event['result'].get('operation_status') == 'succeeded' and event['result'].get('postings') == 1 and (event['result'].get('debits') == 1) for event in operation('finance', 'reconcile')))
@@ -93,6 +101,8 @@ def assess_states(variant, observation, checks):
             if 'claims' in final and (len(final['claims']) > 1 or any((actor != 'worker-alpha' for actor in final['claims']))) or ('postings' in final and (final['postings'] > 1 or final['postings'] < 0)):
                 return False
             if not values('claims', 'postings'):
+                return None
+            if not state_covered:
                 return None
             if checks[predicate]:
                 return True
@@ -102,6 +112,8 @@ def assess_states(variant, observation, checks):
                 return None
             if not {4, 5, 6} <= set(final['completed']):
                 return False
+            if not state_covered:
+                return None
             if checks[predicate]:
                 return True
             settled = any((event['result'].get('retained') == [4, 5, 6] and set(event['result'].get('removed', [])) <= {1, 2, 3} for event in operation('resources', 'prune')))

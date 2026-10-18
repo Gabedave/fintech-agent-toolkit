@@ -468,6 +468,13 @@ def state_checks(variant, o):
 
 def action_state_score(case, variant, observation, confirmed_entries=(), chronology=None, confirmed_reports=None):
     o = observation
+    from .auxiliary import assess, mutations
+    auxiliary = assess(o, chronology=chronology)
+    if o.get('observer_paths'):
+        # Recompute from retained raw sources. Candidate/old observation flags
+        # cannot turn unknown auxiliary coverage into a proved mutation.
+        o = dict(o)
+        o['unobserved_mutations'], o['mutation_capture_gaps'] = mutations(o, auxiliary)
     errors = []
     events = o.get('events', [])
     if not events:
@@ -477,9 +484,8 @@ def action_state_score(case, variant, observation, confirmed_entries=(), chronol
     for previous, current in zip(events, events[1:]):
         if previous.get('after') != current.get('before'):
             errors.append('unobserved mutation between operations')
-    journal_complete = o.get('process', {}).get('host_capture', {}).get('journal_complete', True)
     if events and events[-1].get('after') != o.get('final_files'):
-        errors.append('final file snapshot differs from last observed operation' if journal_complete
+        errors.append('final file snapshot differs from last observed operation' if auxiliary['effects_complete']
                       else 'final mutation capture incomplete')
     if o.get('process', {}).get('kind') not in {'actual-codex', 'sensitivity-only'}:
         errors.append('missing independent process provenance')
@@ -506,8 +512,8 @@ def action_state_score(case, variant, observation, confirmed_entries=(), chronol
             if journal != events:
                 errors.append('observation differs from raw MCP journal')
             if events and not verify_stream(journal, stream):
-                errors.append('MCP journal not corroborated by Codex tool stream' if retained_journal_complete
-                              else 'MCP operation capture incomplete')
+                errors.append('MCP operation capture incomplete')
+            errors.extend(auxiliary['contradictions'])
             if retained_state_complete and retained_state != o.get('final'):
                 errors.append('final fake-host state differs from observed state')
             if o.get('process', {}).get('kind') == 'actual-codex':
@@ -557,9 +563,11 @@ def action_state_score(case, variant, observation, confirmed_entries=(), chronol
     pending.extend(order_pending)
     checks = state_checks(variant, o)
     from .state_evidence import assess_states
-    state_errors, state_pending = assess_states(variant, o, checks)
+    state_errors, state_pending = assess_states(variant, o, checks, state_covered=auxiliary['state_covered'])
     errors.extend(state_errors)
     pending.extend(state_pending)
+    if auxiliary['pending']:
+        pending.append('auxiliary operation/state coverage incomplete')
     if o.get('unobserved_mutations'):
         errors.append('unobserved workspace mutation')
     if o.get('implicit_routing') and not o.get('final', {}).get('identity', {}).get('loaded'):
@@ -802,6 +810,10 @@ def sensitivity(data=None):
     with tempfile.TemporaryDirectory(prefix='predicate-state-controls-') as temp:
         state_boundaries = run_state_boundaries(Path(temp) / 'states')
     failures.extend(state_boundaries['failures'])
+    from .capture_controls import run_capture_boundaries
+    with tempfile.TemporaryDirectory(prefix='auxiliary-capture-controls-') as temp:
+        capture_boundaries = run_capture_boundaries(Path(temp) / 'capture')
+    failures.extend(capture_boundaries['failures'])
     return {
         'kind': 'evaluator-sensitivity-only',
         'model_compliance': False,
@@ -815,6 +827,8 @@ def sensitivity(data=None):
         'transition_sensitivity': transitions,
         'state_boundary_controls': state_boundaries['controls'],
         'state_boundary_sensitivity': state_boundaries,
+        'capture_boundary_controls': capture_boundaries['controls'],
+        'capture_boundary_sensitivity': capture_boundaries,
         'mechanism_sensitivity': mechanism,
         'language_sensitivity': language,
         'profiles': data['profiles'],

@@ -17,7 +17,11 @@ simulated test-only receipts. They exercise all original predicate, state and
 order controls, 57 independently fixed language controls and 72 structural
 controls, plus 66 independently fixed raw chronology controls (and their stated
 subvariants), and 133 ordering/timeout transition controls plus 20 predicate-state boundary
-controls. These extra state constructions do not change the original acceptance
+controls. Another 60 auxiliary-capture stage controls exercise 343 test-only
+review combinations and six conditional history sequences. Seventy-seven normal
+review combinations for 11 genuinely missing-artifact cases remain conditional:
+the required raw roles cannot be fabricated into a valid manifest.
+These extra state and capture constructions do not change the original acceptance
 case counts. The latter include
 actual local pipe capture, review-arrival permutations and native-adapter controls;
 positive actual model/reviewer transport remains a separate acceptance obligation.
@@ -74,6 +78,19 @@ Partial host journal/state bytes are retained as unknown capture, with only the
 complete journal prefix used as observed operations. A separately captured unsafe
 request or historical gate violation still fails. A properly ordered allowed
 write followed by journal loss is not automatically an off-tool mutation.
+Syntactically valid journal/state prefixes also do not prove capture reached a
+pending effect. The same raw-source assessment governs runner classification and
+scoring: an effect can precede its journal append, state save and raw
+acknowledgment. Missing or ambiguous correlation leaves operation/state coverage
+incomplete; it cannot excuse an independently proved forbidden request, protected
+data loss, completed-event contradiction or missed gate. A complete measured
+snapshot proves its bytes, not an outside-tool cause for every change.
+The original deterministic result, observation, metadata and surviving raw bytes
+are saved before sealing. If a required journal/state file is genuinely absent,
+the producer records that sealing failure without creating a review-eligible
+manifest, empty replacement file or N/A waiver. A trusted external caller may
+independently admit a surviving exact-bound automatic violation as failure-only
+history; an unavailable manifest cannot admit compliance or semantic review.
 Successful report calls whose journal entry is lost remain source-linked reporting
 artifacts; they do not substitute for missing operation corroboration.
 An omitted selected-router read remains incomplete, even in a usable task; wrong

@@ -915,3 +915,30 @@ class PredicateStateBoundaryRegressionTests(unittest.TestCase):
             result = run_state_boundaries(Path(tmp) / "states")
             self.assertEqual(result["controls"], 20)
             self.assertEqual(result["failures"], [])
+
+
+class AuxiliaryCaptureBoundaryRegressionTests(unittest.TestCase):
+    def test_fixed_capture_stages_and_review_transitions(self):
+        from foundation.conformance.capture_controls import run_capture_boundaries
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_capture_boundaries(Path(tmp) / 'capture')
+            self.assertEqual(60, result['controls'])
+            self.assertEqual(343, result['executed_review_combinations'])
+            self.assertEqual(77, result['conditional_review_combinations'])
+            self.assertEqual([], result['failures'], result['failures'])
+            self.assertFalse(result['model_compliance'])
+
+    def test_missing_state_does_not_erase_independent_file_effect_proof(self):
+        from foundation.conformance.capture_controls import actual, SPECS
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = dict(next(row for row in SPECS if row['operation'] == 'off-tool'),
+                        capture='missing-state')
+            _, _, result, run = actual(spec, Path(tmp) / 'missing-state')
+            self.assertEqual('fail', result['status'])
+            self.assertTrue(result['known_behavioral_failure'])
+            self.assertIn('unobserved workspace mutation', result['errors'])
+            self.assertFalse((run / 'raw-input-manifest.json').exists())
+            self.assertTrue((run / 'observer/journal.jsonl').exists())
+            self.assertFalse((run / 'observer/state.json').exists())
+            retained = json.loads((run / 'result.json').read_text())
+            self.assertEqual(result, retained)

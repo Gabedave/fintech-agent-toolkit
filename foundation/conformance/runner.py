@@ -434,8 +434,6 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     events, journal_complete = read_host_capture(journal, lines=True)
     final, state_complete = read_host_capture(state_path)
     end = files(workspace)
-    latest = events[-1]['after'] if events else initial_files
-    mutations = sorted((k for k in latest.keys() | end.keys() if latest.get(k) != end.get(k)))
     process={'kind':'actual-codex','started':True,'started_at_ns':raw['started_at_ns'],'exit':raw['exit'],'timed_out':raw['timed_out'],
              'tool_stream_verified':verify_stream(
                  events,
@@ -453,8 +451,7 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     obs={'events':events,'initial':initial,'final':final,'initial_files':initial_files,'final_files':end,
          'final_text':final_message(raw['events']),'process':process,'identity':identity,
          'user_state_before':user_before,'user_state_after':user_snapshot(),'integration':{'A6':'pending','A7':'pending'},
-         'unobserved_mutations':mutations if journal_complete else [],
-         'mutation_capture_gaps':mutations if not journal_complete else [],'observer_paths':{
+         'observer_paths':{
              'journal':str(journal),
              'stdout':str(private/'stdout.jsonl'),
              'state':str(state_path),
@@ -463,6 +460,9 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     obs['denied_attempts'] = denied_attempts
     obs['raw_attempts'] = attempts
     obs['implicit_routing'] = implicit
+    from .auxiliary import assess, mutations
+    auxiliary = assess(obs, stream=raw['events'])
+    obs['unobserved_mutations'], obs['mutation_capture_gaps'] = mutations(obs, auxiliary)
     metadata={'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
               'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
               'foundation_lock':json.loads((Path(args.candidate)/'foundation-lock.json').read_text()) if (Path(args.candidate)/'foundation-lock.json').exists() else None,'candidate_tree_digest':candidate_digest,
@@ -483,7 +483,6 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     metadata['installed_file_hashes'] = installed_files
     (output / 'observation.json').write_text(json.dumps(obs, indent=2, sort_keys=True))
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2, sort_keys=True))
-    manifest_path = seal_observed_run(output, case, variant, obs, metadata, args.profile_role)
     result = score(case, variant, obs)
     if candidate_files != installed_files:
         result['status'] = 'fail'
@@ -508,6 +507,20 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
             result['errors'].append('unexpected native tool operation: ' + kind)
     (output / 'action-state-result.json').write_text(json.dumps(result['action_state_result'], indent=2))
     (output / 'result.json').write_text(json.dumps(result, indent=2))
+    try:
+        manifest_path = seal_observed_run(output, case, variant, obs, metadata, args.profile_role)
+    except FileNotFoundError:
+        missing = [role for role, path in (
+            ('raw_tool_journal', journal), ('final_state', state_path)) if not path.exists()]
+        if not missing:
+            raise
+        # These are unavailable sources, not empty captured artifacts. The
+        # original automatic result and all surviving bytes already exist.
+        (output / 'sealing-error.json').write_text(json.dumps({
+            'kind': 'missing-required-raw-input', 'missing_roles': missing,
+            'review_eligible_manifest': False, 'error_class': 'FileNotFoundError'
+        }, indent=2, sort_keys=True))
+        return result
     result['raw_input_manifest'] = str(manifest_path)
     return result
 
