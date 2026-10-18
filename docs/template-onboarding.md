@@ -12,7 +12,12 @@ Use Python 3.12 or newer with its standard library (the toolkit CI and conforman
 harness baseline). Obtain and review a specific foundation
 checkout first. Record its canonical repository, full 40-character Git commit,
 foundation version, and source digest in the release evidence. No runtime fetch
-occurs. Keep exclusive ownership of the output directory during generation; the
+occurs. Before publishing an adopter, ensure that exact source commit is retrievable
+from the authorized canonical foundation repository through reviewed history or an
+immutable reviewed source reference. A source pin is not the generated-plugin
+release head. Squash/rebase may change IDs; preserve the source pin or regenerate
+and reverify from the resulting reviewed source. A local commit is not a published
+source reference. Keep exclusive ownership of the output directory during generation; the
 renderer rejects symlink paths and parents. On systems where `/tmp` or `/var` is a
 symlink, use its canonical path (`realpath`).
 
