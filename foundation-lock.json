@@ -1,62 +1,194 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "ef73b1dfed7a05d2ed948d04bc58d387f453ecef",
+  "source_commit": "6691504f55339f5c6d800f6b07f119ec12bcfa9b",
   "plugin_name": "fintech-engineering",
   "plugin_version": "0.2.0",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
     "version": "1.0.0",
-    "commit": "ef73b1dfed7a05d2ed948d04bc58d387f453ecef",
-    "digest": "c1d6d397b501f6c45c238e8fdc011ea12af922ebde9c656efca4a86dae6c017e"
+    "commit": "6691504f55339f5c6d800f6b07f119ec12bcfa9b",
+    "digest": "20d36d63254df6b68713bb9292f3b261bacf0be880e8d3babeae5de39b7aa870"
   },
   "adapter_revision": "1.0.0",
   "profile_digest": "c53bfed1bf2e82fde8dfc06108d1366d094d7574f7372ba9c0d5f03d260e79c9",
-  "generated_tree_digest": "8529b8cb6716e095de042dbe081105d34f4c61eaa6d84b8d0caf20f3da85d74a",
+  "generated_tree_digest": "2800cbae16fd52a3f01dbd4c7768387c1dab8f7e428da9f222664ff19eb6df2d",
   "files": {
-    ".agents/plugins/marketplace.json": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
-    "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": "7dda1211d699dff4442a129c24272e836eb1d7011b9b4bf603e899e4aaa0c128",
-    "plugins/fintech-engineering/.codex-plugin/plugin.json": "29708119ec255c02ff0bfe84bf385c3e1735a1f0ac011420dfa046810f649d3e",
-    "plugins/fintech-engineering/scripts/verify_merge_candidate.py": "2b57f75b51b7c3fbedba4c3cc1c520afe3f787ca9b311f4f7583ada5936ad417",
-    "plugins/fintech-engineering/scripts/verify_repository_snapshot.py": "a3f41459ab6a1f288640ff7e1ab8aea495750ab49c4e5e5b195f176121e416d6",
-    "plugins/fintech-engineering/skills/architect/SKILL.md": "2b65378d2b329d249a80f2602783a9e02d3f5b7306346531eefff9d95cc8c1f3",
-    "plugins/fintech-engineering/skills/architect/agents/openai.yaml": "84299f97785d313b41eeb91730cda0a226fdffa96dea32e1de61eeedf3051593",
-    "plugins/fintech-engineering/skills/architect/assets/adr-template.md": "16726de027bd98fc02b0209846a00f6b07801ecaa8d54eec3d284157ad929db8",
-    "plugins/fintech-engineering/skills/architect/references/decision-records.md": "1d8456e5cb754124bb537586c3dcbe255a1abee84cc649e95c31fd3d0524b400",
-    "plugins/fintech-engineering/skills/architect/references/design-record.md": "45074a6f2ef24434f1440fc4068e93ac7dd4aa3cb6051d0525182dab00f0c659",
-    "plugins/fintech-engineering/skills/blast-radius/SKILL.md": "8b397dfb2a3fa6c0aac3ce3b8ab8600dfcce091895c3621133d140788a6d7ccc",
-    "plugins/fintech-engineering/skills/blast-radius/agents/openai.yaml": "f4b1dd5542de3c09d635007d7687ca913e7f1d871df5579917d4dc7c4e24a8ed",
-    "plugins/fintech-engineering/skills/blast-radius/references/repository-discovery.md": "a5b82a0d07d24d1c6a6d19552536f1be9c82e614fda5826ab2dac01336cc9364",
-    "plugins/fintech-engineering/skills/ci-babysit/SKILL.md": "4cad13818bbcc8aa80aa86f94432c0c82879be012eb9a0ae56dc9c2c54c337dc",
-    "plugins/fintech-engineering/skills/ci-babysit/agents/openai.yaml": "f721f6e6c46487f8c7a0fcb7e75897f2febea67c5137d26dbf4eab90cf8ce6c8",
-    "plugins/fintech-engineering/skills/ci-babysit/references/failure-states.md": "44013357319d6ad167a134f39adaff083d06cbe813f90a5c9c924ca6201d1d1d",
-    "plugins/fintech-engineering/skills/fintech-mode/SKILL.md": "18b33971ddd8d5bd992c660c6299f8a0d3eeaa5ec4365257d8034025d86c8915",
-    "plugins/fintech-engineering/skills/fintech-mode/agents/openai.yaml": "35fba7f5ae344d9b6f997ff3a759a2ecdad9230684006001e8b0c8cfcc83b5f4",
-    "plugins/fintech-engineering/skills/fintech-mode/references/acceptance-and-evidence.md": "bc6ce59b1a05b0624e636d2f2181067d538cadda195019cbede1a02b8b36efec",
-    "plugins/fintech-engineering/skills/fintech-mode/references/implementation-readiness.md": "df63e177d0fef20cc8b525d918bc5c546171b87d26fca84d6d0e238abef1b704",
-    "plugins/fintech-engineering/skills/fintech-mode/references/playbooks.md": "8e27d38362996f551c07196c6191999b43d7671f1a86d8388a5596ca17a1704d",
-    "plugins/fintech-engineering/skills/fintech-mode/references/principles.md": "3f313aa28e0de7ab8b8813ea1ef81a3e522888313925ef39eb98c9e3c7e1340f",
-    "plugins/fintech-engineering/skills/fintech-mode/references/routing-contract.json": "71f2a4e26f24a46a9c442e5c6d2bfffcbe24985f4c72e3ef17e839da94e61d8e",
-    "plugins/fintech-engineering/skills/fintech-mode/references/ui-verification.md": "619e98c5b1f801ee77e68efd5d73b776cfcb07b8469f04ef9e15fa7af8a22244",
-    "plugins/fintech-engineering/skills/how/SKILL.md": "e9ea69456e08640a21baf7cc4edd35acd55939ae88af8d9111f5d5f706e8447a",
-    "plugins/fintech-engineering/skills/how/agents/openai.yaml": "ea2509f8717f1f3f881fcc03065ff7d52e3e4b4fc6e94d4165204d712dcc6e35",
-    "plugins/fintech-engineering/skills/how/references/explanation.md": "49da395723b231e1fd8a5d2903de234109d3955db9f66163ce1ded03c8ebf8cd",
-    "plugins/fintech-engineering/skills/maintain-verification/SKILL.md": "9d6c5d74ea3ff6da486e4d7e329e11152a0bcf678c91beb3a311aa0be6ca8b6b",
-    "plugins/fintech-engineering/skills/maintain-verification/agents/openai.yaml": "3a86318cc3c9d2e6b951990aa9216eafdcc31b50e68cdd73da4a58bd9bca7f03",
-    "plugins/fintech-engineering/skills/maintain-verification/references/lifecycle.md": "6d29faa9998524072f75be560eab32bcea5530e8c1cadd94f5df22191865fac3",
-    "plugins/fintech-engineering/skills/pre-push-review/SKILL.md": "1a6c21ef77ffa100fce8d4bbc06de1856be6eadeea049b339def691fac99a213",
-    "plugins/fintech-engineering/skills/pre-push-review/agents/openai.yaml": "888ca90887df39851b77c28fd0b909350ed770fa2620785981f6afde516aaa11",
-    "plugins/fintech-engineering/skills/pre-push-review/references/external-evidence.md": "a176683ef23d9c0f144a1af676f08dce8a8f70ff6138278aa68bc0337b84f57c",
-    "plugins/fintech-engineering/skills/pre-push-review/references/high-risk-audit.md": "cff45bdb092d9d0956568ec9b8bed5852b2d2828ecebb50f2935e276a1aa9c69",
-    "plugins/fintech-engineering/skills/pre-push-review/references/review-protocol.md": "8e79b782dd4e4e655e31c6a63aab46215c9dcbecc0e3d074a8ede4cba73a0554",
-    "plugins/fintech-engineering/skills/reflect/SKILL.md": "886f82a568bc16ded12f4edd3151d1fdc59d0eaf100af00f7d365cb198b1d731",
-    "plugins/fintech-engineering/skills/reflect/agents/openai.yaml": "50db2d29b8fb7a961c5bfffecc67d99df7931d34ebf3f9dc4fb8e4ba68366e8b",
-    "plugins/fintech-engineering/skills/reflect/references/proposal-template.md": "6cdde00273ac32cda14167fd0c14531eb11e10e646b5c85e04bfeffa6ecb0ae6",
-    "plugins/fintech-engineering/skills/why/SKILL.md": "19f66fd8a74474326f6644d859ae2b12c839be3405a446504db804d30fcee9c0",
-    "plugins/fintech-engineering/skills/why/agents/openai.yaml": "57544b4d27f61f0bbb2e2116d478d142e74c550290705395a18a63fb3cab20c9",
-    "plugins/fintech-engineering/skills/why/references/evidence.md": "6ba78e81da84f8d52d312474a36efc3ea84a4d79988012e6e46a70c880f7d3c6",
-    "plugins/fintech-engineering/skills/work-continuity/SKILL.md": "b571b57ba81ad2367cf3d619f57180c17eef8bf37449119193ae95bd3788563c",
-    "plugins/fintech-engineering/skills/work-continuity/agents/openai.yaml": "3f67c4b5c1cfc674aef03338632d8cd61937a144627eb71cbe95a255ec901b56",
-    "plugins/fintech-engineering/skills/work-continuity/references/resume-record.md": "0993c0c5ca4b81829288c4e1a845823963d30826ada6189a5063d5dbf756d850"
+    ".agents/plugins/marketplace.json": {
+      "sha256": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": {
+      "sha256": "820e708378f37b183e28c4fd564de4ce98439a46fb9cd0dfd5ab999ffb66496e",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/.codex-plugin/plugin.json": {
+      "sha256": "29708119ec255c02ff0bfe84bf385c3e1735a1f0ac011420dfa046810f649d3e",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/scripts/verify_merge_candidate.py": {
+      "sha256": "2b57f75b51b7c3fbedba4c3cc1c520afe3f787ca9b311f4f7583ada5936ad417",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/scripts/verify_repository_snapshot.py": {
+      "sha256": "a3f41459ab6a1f288640ff7e1ab8aea495750ab49c4e5e5b195f176121e416d6",
+      "mode": "0755"
+    },
+    "plugins/fintech-engineering/skills/architect/SKILL.md": {
+      "sha256": "2b65378d2b329d249a80f2602783a9e02d3f5b7306346531eefff9d95cc8c1f3",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/architect/agents/openai.yaml": {
+      "sha256": "84299f97785d313b41eeb91730cda0a226fdffa96dea32e1de61eeedf3051593",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/architect/assets/adr-template.md": {
+      "sha256": "16726de027bd98fc02b0209846a00f6b07801ecaa8d54eec3d284157ad929db8",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/architect/references/decision-records.md": {
+      "sha256": "1d8456e5cb754124bb537586c3dcbe255a1abee84cc649e95c31fd3d0524b400",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/architect/references/design-record.md": {
+      "sha256": "45074a6f2ef24434f1440fc4068e93ac7dd4aa3cb6051d0525182dab00f0c659",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/blast-radius/SKILL.md": {
+      "sha256": "8b397dfb2a3fa6c0aac3ce3b8ab8600dfcce091895c3621133d140788a6d7ccc",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/blast-radius/agents/openai.yaml": {
+      "sha256": "f4b1dd5542de3c09d635007d7687ca913e7f1d871df5579917d4dc7c4e24a8ed",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/blast-radius/references/repository-discovery.md": {
+      "sha256": "a5b82a0d07d24d1c6a6d19552536f1be9c82e614fda5826ab2dac01336cc9364",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/ci-babysit/SKILL.md": {
+      "sha256": "3a0f45d2f4616fe0ef82aa968a07177cd793fe9986732c3470a0a32a7cfb4849",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/ci-babysit/agents/openai.yaml": {
+      "sha256": "f721f6e6c46487f8c7a0fcb7e75897f2febea67c5137d26dbf4eab90cf8ce6c8",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/ci-babysit/references/failure-states.md": {
+      "sha256": "44013357319d6ad167a134f39adaff083d06cbe813f90a5c9c924ca6201d1d1d",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/SKILL.md": {
+      "sha256": "18b33971ddd8d5bd992c660c6299f8a0d3eeaa5ec4365257d8034025d86c8915",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/agents/openai.yaml": {
+      "sha256": "35fba7f5ae344d9b6f997ff3a759a2ecdad9230684006001e8b0c8cfcc83b5f4",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/references/acceptance-and-evidence.md": {
+      "sha256": "bc6ce59b1a05b0624e636d2f2181067d538cadda195019cbede1a02b8b36efec",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/references/implementation-readiness.md": {
+      "sha256": "df63e177d0fef20cc8b525d918bc5c546171b87d26fca84d6d0e238abef1b704",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/references/playbooks.md": {
+      "sha256": "ee5c56eaa99ae703f629b3b68b5554328bb65e96ae28fc101aca4a939f205a7b",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/references/principles.md": {
+      "sha256": "3f313aa28e0de7ab8b8813ea1ef81a3e522888313925ef39eb98c9e3c7e1340f",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/references/routing-contract.json": {
+      "sha256": "71f2a4e26f24a46a9c442e5c6d2bfffcbe24985f4c72e3ef17e839da94e61d8e",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/fintech-mode/references/ui-verification.md": {
+      "sha256": "619e98c5b1f801ee77e68efd5d73b776cfcb07b8469f04ef9e15fa7af8a22244",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/how/SKILL.md": {
+      "sha256": "e9ea69456e08640a21baf7cc4edd35acd55939ae88af8d9111f5d5f706e8447a",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/how/agents/openai.yaml": {
+      "sha256": "ea2509f8717f1f3f881fcc03065ff7d52e3e4b4fc6e94d4165204d712dcc6e35",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/how/references/explanation.md": {
+      "sha256": "49da395723b231e1fd8a5d2903de234109d3955db9f66163ce1ded03c8ebf8cd",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/maintain-verification/SKILL.md": {
+      "sha256": "9d6c5d74ea3ff6da486e4d7e329e11152a0bcf678c91beb3a311aa0be6ca8b6b",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/maintain-verification/agents/openai.yaml": {
+      "sha256": "3a86318cc3c9d2e6b951990aa9216eafdcc31b50e68cdd73da4a58bd9bca7f03",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/maintain-verification/references/lifecycle.md": {
+      "sha256": "6d29faa9998524072f75be560eab32bcea5530e8c1cadd94f5df22191865fac3",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/pre-push-review/SKILL.md": {
+      "sha256": "1a6c21ef77ffa100fce8d4bbc06de1856be6eadeea049b339def691fac99a213",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/pre-push-review/agents/openai.yaml": {
+      "sha256": "888ca90887df39851b77c28fd0b909350ed770fa2620785981f6afde516aaa11",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/pre-push-review/references/external-evidence.md": {
+      "sha256": "a176683ef23d9c0f144a1af676f08dce8a8f70ff6138278aa68bc0337b84f57c",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/pre-push-review/references/high-risk-audit.md": {
+      "sha256": "cff45bdb092d9d0956568ec9b8bed5852b2d2828ecebb50f2935e276a1aa9c69",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/pre-push-review/references/review-protocol.md": {
+      "sha256": "8e79b782dd4e4e655e31c6a63aab46215c9dcbecc0e3d074a8ede4cba73a0554",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/reflect/SKILL.md": {
+      "sha256": "886f82a568bc16ded12f4edd3151d1fdc59d0eaf100af00f7d365cb198b1d731",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/reflect/agents/openai.yaml": {
+      "sha256": "50db2d29b8fb7a961c5bfffecc67d99df7931d34ebf3f9dc4fb8e4ba68366e8b",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/reflect/references/proposal-template.md": {
+      "sha256": "6cdde00273ac32cda14167fd0c14531eb11e10e646b5c85e04bfeffa6ecb0ae6",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/why/SKILL.md": {
+      "sha256": "19f66fd8a74474326f6644d859ae2b12c839be3405a446504db804d30fcee9c0",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/why/agents/openai.yaml": {
+      "sha256": "57544b4d27f61f0bbb2e2116d478d142e74c550290705395a18a63fb3cab20c9",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/why/references/evidence.md": {
+      "sha256": "6ba78e81da84f8d52d312474a36efc3ea84a4d79988012e6e46a70c880f7d3c6",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/work-continuity/SKILL.md": {
+      "sha256": "b571b57ba81ad2367cf3d619f57180c17eef8bf37449119193ae95bd3788563c",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/work-continuity/agents/openai.yaml": {
+      "sha256": "3f67c4b5c1cfc674aef03338632d8cd61937a144627eb71cbe95a255ec901b56",
+      "mode": "0644"
+    },
+    "plugins/fintech-engineering/skills/work-continuity/references/resume-record.md": {
+      "sha256": "0993c0c5ca4b81829288c4e1a845823963d30826ada6189a5063d5dbf756d850",
+      "mode": "0644"
+    }
   }
 }

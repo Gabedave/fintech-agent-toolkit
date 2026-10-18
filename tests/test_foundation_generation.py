@@ -6,6 +6,7 @@ Expected decisions come from acceptance-v1 A1/A3/A11, not renderer helpers.
 import hashlib
 import json
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -145,8 +146,11 @@ class FoundationGeneration(unittest.TestCase):
         self.assertEqual(lock["adapter_revision"], "1")
         self.assertRegex(lock["foundation"]["digest"], r"^[0-9a-f]{64}$")
         self.assertRegex(lock["profile_digest"], r"^[0-9a-f]{64}$")
-        for relative, digest in lock["files"].items():
-            self.assertEqual(hashlib.sha256((self.output / relative).read_bytes()).hexdigest(), digest)
+        self.assertEqual(lock["schema_version"], 2)
+        for relative, record in lock["files"].items():
+            self.assertEqual(set(record), {"sha256", "mode"})
+            self.assertEqual(hashlib.sha256((self.output / relative).read_bytes()).hexdigest(), record["sha256"])
+            self.assertEqual(f"{stat.S_IMODE((self.output / relative).stat().st_mode):04o}", record["mode"])
         self.assertEqual(set(lock["files"]), set(self.files()) - {"foundation-lock.json"})
         encoded = json.dumps(lock["files"], sort_keys=True, separators=(",", ":")).encode()
         self.assertEqual(lock["generated_tree_digest"], hashlib.sha256(encoded).hexdigest())
@@ -187,7 +191,8 @@ class FoundationGeneration(unittest.TestCase):
         self.assertEqual(provenance["foundation"]["commit"], PIN)
         self.assertEqual(provenance["foundation"]["repository"], "https://github.com/Gabedave/fintech-agent-toolkit")
         for relative, expected in provenance["content_files"].items():
-            self.assertEqual(hashlib.sha256((plugin / relative).read_bytes()).hexdigest(), expected)
+            self.assertEqual(hashlib.sha256((plugin / relative).read_bytes()).hexdigest(), expected["sha256"])
+            self.assertEqual(f"{stat.S_IMODE((plugin / relative).stat().st_mode):04o}", expected["mode"])
         expected_paths = {p.relative_to(plugin).as_posix() for p in plugin.rglob("*") if p.is_file()}
         self.assertEqual(set(provenance["content_files"]), expected_paths - {".codex-plugin/foundation-provenance.json"})
         self.assertEqual(provenance["content_digest"], hashlib.sha256(
@@ -198,7 +203,8 @@ class FoundationGeneration(unittest.TestCase):
         changed = installed / "skills/example-mode/SKILL.md"
         changed.write_text("unapproved installed byte\n")
         mismatches = [name for name, expected in provenance["content_files"].items()
-                      if hashlib.sha256((installed / name).read_bytes()).hexdigest() != expected]
+                      if hashlib.sha256((installed / name).read_bytes()).hexdigest() != expected["sha256"]
+                      or f"{stat.S_IMODE((installed / name).stat().st_mode):04o}" != expected["mode"]]
         self.assertEqual(mismatches, ["skills/example-mode/SKILL.md"])
         installed_distribution = self.root / "isolated-distribution"
         shutil.copytree(self.output, installed_distribution)
@@ -318,6 +324,91 @@ class FoundationGeneration(unittest.TestCase):
         self.assertEqual(unrelated.read_text(), "user-owned\n")
         self.assertEqual(other_plugin.read_text(), "other plugin\n")
 
+    def test_first_render_refuses_foreign_manifest_without_ownership_lock(self):
+        manifest = self.output / "plugins/example-engineering/.codex-plugin/plugin.json"
+        self.write(manifest, {"name": "foreign-plugin", "version": "99.0.0", "custom": "user-owned"})
+        before = self.files()
+        self.invoke(success=False)
+        self.assertEqual(before, self.files())
+
+    def test_first_render_refuses_same_identity_custom_files_without_lock(self):
+        manifest = self.output / "plugins/example-engineering/.codex-plugin/plugin.json"
+        self.write(manifest, {"name": self.data["plugin_name"], "version": self.data["plugin_version"], "custom": "user-owned"})
+        skill = self.output / "plugins/example-engineering/skills/example-mode/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("same identity with custom local workflow\n")
+        before = self.files()
+        self.invoke(success=False)
+        self.assertEqual(before, self.files())
+
+    def test_existing_lock_does_not_authorize_overwriting_custom_managed_bytes(self):
+        self.invoke()
+        skill = self.output / "plugins/example-engineering/skills/example-mode/SKILL.md"
+        skill.write_text("custom workflow added after earlier render\n")
+        before = self.files()
+        self.invoke(success=False)
+        self.assertEqual(before, self.files())
+
+    def test_executable_helper_mode_is_preserved_and_direct_invocation_works(self):
+        helper = self.bundle / "scripts/helper.py"
+        helper.parent.mkdir()
+        helper.write_text("#!/usr/bin/env python3\nprint('helper-entrypoint-ok')\n")
+        helper.chmod(0o755)
+        self.invoke()
+        generated = self.output / "plugins/example-engineering/scripts/helper.py"
+        self.assertEqual(stat.S_IMODE(generated.stat().st_mode), 0o755)
+        result = subprocess.run([str(generated), "--help"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "helper-entrypoint-ok\n")
+        self.invoke("--check")
+
+    def test_generated_mode_tamper_is_rejected_without_overwriting(self):
+        self.invoke()
+        skill = self.output / "plugins/example-engineering/skills/example-mode/SKILL.md"
+        skill.chmod(0o755)
+        before = self.files()
+        self.invoke("--check", success=False)
+        self.invoke(success=False)
+        self.assertEqual(before, self.files())
+        self.assertEqual(stat.S_IMODE(skill.stat().st_mode), 0o755)
+
+    def test_root_lock_and_installed_provenance_modes_are_checked(self):
+        self.invoke()
+        for relative in ("foundation-lock.json", "plugins/example-engineering/.codex-plugin/foundation-provenance.json"):
+            with self.subTest(relative=relative):
+                isolated = self.root / ("metadata-mode-" + str(len(relative)))
+                shutil.copytree(self.output, isolated)
+                target = isolated / relative
+                target.chmod(0o755)
+                self.invoke("--check", output=isolated, success=False)
+                self.invoke(output=isolated, success=False)
+                self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o755)
+
+    def test_source_mode_drift_changes_foundation_and_installed_identity(self):
+        helper = self.bundle / "helper.py"
+        helper.write_text("# synthetic helper\n")
+        self.invoke()
+        first = json.loads((self.output / "foundation-lock.json").read_text())
+        helper.chmod(0o755)
+        self.invoke("--check", success=False)
+        other = self.root / "mode-variant"
+        self.invoke(output=other)
+        second = json.loads((other / "foundation-lock.json").read_text())
+        self.assertNotEqual(first["foundation"]["digest"], second["foundation"]["digest"])
+        self.assertNotEqual(first["generated_tree_digest"], second["generated_tree_digest"])
+        provenance = json.loads((other / "plugins/example-engineering/.codex-plugin/foundation-provenance.json").read_text())
+        self.assertEqual(provenance["schema_version"], 2)
+        self.assertEqual(provenance["content_files"]["helper.py"]["mode"], "0755")
+
+    def test_unsupported_source_file_modes_are_rejected(self):
+        helper = self.bundle / "unsupported.py"
+        helper.write_text("# synthetic\n")
+        for mode in (0o600, 0o664, 0o1755):
+            with self.subTest(mode=oct(mode)):
+                helper.chmod(mode)
+                self.invoke(success=False)
+                self.assertFalse(self.output.exists())
+
     def test_refuses_marketplace_with_unrelated_plugin_before_any_write(self):
         self.invoke()
         path = self.output / ".agents/plugins/marketplace.json"
@@ -348,7 +439,7 @@ class FoundationGeneration(unittest.TestCase):
         lock = json.loads(path.read_text())
         for key, value in (("plugin_name", "another-engineering"),
                            ("canonical_repository", "https://example.com/another/toolkit"),
-                           ("schema_version", 2)):
+                           ("schema_version", 3)):
             with self.subTest(key=key):
                 self.write(path, dict(lock, **{key: value}))
                 before = self.files()

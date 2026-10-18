@@ -8,7 +8,8 @@ the workflow.
 
 ## Render and check
 
-Use Python 3 with its standard library. Obtain and review a specific foundation
+Use Python 3.12 or newer with its standard library (the toolkit CI and conformance
+harness baseline). Obtain and review a specific foundation
 checkout first. Record its canonical repository, full 40-character Git commit,
 foundation version, and source digest in the release evidence. No runtime fetch
 occurs. Keep exclusive ownership of the output directory during generation; the
@@ -29,13 +30,24 @@ The output contains a native plugin under `plugins/harbor-engineering`, a local
 marketplace under `.agents/plugins/marketplace.json`, and `foundation-lock.json`.
 The plugin carries `.codex-plugin/foundation-provenance.json`, so its identity and
 content hashes remain available after isolated installation. Root lock validation
-also checks those provenance bytes. Run the same render in two separate clean
-directories and compare the complete outputs before adopting a new pin.
+also checks those provenance bytes and modes. Root locks and installed provenance
+use schema version **2**; profile and foundation-version schemas remain **1**.
+Every `files` or `content_files` record is
+`{"sha256": "<64 lowercase hex characters>", "mode": "0644"}` (or `"0755"`).
+Tree/content digests hash the compact, sorted-key UTF-8 JSON of the complete record
+map. The installed provenance excludes itself from `content_files` to avoid a
+circular digest; the root lock includes that provenance file. The root lock itself
+is excluded from its map and must have mode `0644`. Run the same render in two
+separate clean directories and compare complete bytes and modes before adopting a
+new pin.
 
 `--source-commit` identifies the **foundation source**, not the later generated
 candidate's Git commit. The lock binds that declared pin to a digest of every
-foundation source file, including the conformance harness and fixtures (Python
-bytecode caches are excluded). The renderer cannot establish that an arbitrary
+foundation source file's bytes and mode, including the conformance harness and
+fixtures (Python bytecode caches are excluded). Only exact file modes `0644` and
+`0755` are supported; other permission or special bits are rejected. Executable
+helpers retain their source `0755` mode. Generated marketplace, provenance, and
+root-lock metadata use `0644`. The renderer cannot establish that an arbitrary
 commit label is authentic: independently verify the checkout and its digest
 against the reviewed source. Identify the final candidate revision externally in
 release evidence, then compare actual installed bytes and inspect the identity
@@ -46,13 +58,24 @@ The renderer validates all planned paths before writing. Files are replaced
 atomically one at a time, with the root lock written last; an interrupted render
 must pass `--check` before use. It preserves unrelated output files and rejects
 unexpected files inside the managed plugin. Reconcile an older distribution
-explicitly rather than deleting unknown files automatically. Each output has
-exclusive ownership of a single-profile marketplace and root lock. An existing
+explicitly rather than deleting unknown files automatically. A first render
+requires a clean managed destination: a file at a planned path is not evidence of
+ownership, even when its plugin name matches. Subsequent updates require a
+supported matching root lock and current managed bytes/modes matching its file
+records. Custom modifications are preserved by refusing the update before any
+write. A structurally identical owned marketplace may differ only in JSON
+formatting. Each output has exclusive ownership of a single-profile marketplace
+and root lock. An existing
 marketplace must match the managed identity, sole plugin, and metadata (including
 `interface.displayName`); additional entries or custom labels cause refusal before
 any write. A lock for another profile or unsupported schema is also refused.
 Reconcile those files explicitly, or use a clean output for a different profile.
-The renderer does not merge unrelated marketplace metadata. A failed `--check`
+The renderer does not merge unrelated marketplace metadata. An older lock schema
+or an existing unowned distribution requires explicit migration: preserve the old
+tree for review, render into clean staging, verify the new tree, and replace the
+old distribution only after its ownership and custom-data disposition are agreed.
+An incomplete interrupted render may also require reconciled clean staging; the
+renderer does not silently claim ownership of partial files. A failed `--check`
 performs no writes.
 
 ## Profile contract
