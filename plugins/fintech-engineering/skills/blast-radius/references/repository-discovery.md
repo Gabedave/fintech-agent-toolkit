@@ -7,3 +7,13 @@ Discover ownership from the task, repository instructions, issue links, manifest
 - Operations tools: queues, approvals, reconciliation, receipts, and administrative actions.
 
 These are roles, not required repository names. Confirm which repositories exist before assigning work. Search producer and consumer contracts in both directions: endpoint paths, payload fields, error codes, permissions, transaction states, event and queue names, feature flags, and release dependencies.
+
+## Company discovery hints
+
+- backend: `backend`, `api`, `server`
+- customer-client: `web`, `mobile`
+- operations: `admin`
+
+These are unverified discovery hints. Confirm repository ownership and local instructions before acting.
+
+These are discovery hints, not verified ownership, an exhaustive inventory, or access grants. Confirm current boundaries from authorized repository evidence.

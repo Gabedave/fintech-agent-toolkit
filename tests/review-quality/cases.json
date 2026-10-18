@@ -56,6 +56,96 @@
         "broken": {"claims": 1, "single_owner": true, "stored_owner": true},
         "fixed": {"claims": 1, "single_owner": true, "stored_owner": true}
       }
+    },
+    {
+      "id": "bounded-retention",
+      "lines": [
+        2,
+        4
+      ],
+      "required_invariants": [
+        "state",
+        "recovery-observability"
+      ],
+      "counterexample": {
+        "input": {
+          "completed": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "incoming": [
+            5,
+            6
+          ],
+          "waiting": [
+            7
+          ]
+        },
+        "broken": {
+          "completed": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "incoming": [],
+          "waiting": [
+            7
+          ],
+          "removed": 0
+        },
+        "fixed": {
+          "completed": [
+            4,
+            5,
+            6
+          ],
+          "incoming": [],
+          "waiting": [
+            7
+          ],
+          "removed": 3
+        }
+      },
+      "neutral": {
+        "input": {
+          "completed": [
+            1
+          ],
+          "incoming": [
+            2
+          ],
+          "waiting": [
+            3
+          ]
+        },
+        "broken": {
+          "completed": [
+            1,
+            2
+          ],
+          "incoming": [],
+          "waiting": [
+            3
+          ],
+          "removed": 0
+        },
+        "fixed": {
+          "completed": [
+            1,
+            2
+          ],
+          "incoming": [],
+          "waiting": [
+            3
+          ],
+          "removed": 0
+        }
+      }
     }
   ]
 }

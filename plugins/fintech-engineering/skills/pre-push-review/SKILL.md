@@ -9,7 +9,7 @@ Perform the final evidence-backed quality gate without claiming software is defe
 
 ## Scope and snapshot
 
-1. Read applicable repository instructions and recover the ticket's acceptance criteria.
+1. Read applicable repository instructions and recover the independently fixed acceptance criteria.
 2. Inspect the complete intended diff, including untracked files, against the correct merge base.
 3. Exclude unrelated user work and record the candidate commit or diff identity.
 4. When a pull request is requested, independently resolve the repository default and selected PR base, then inspect the candidate commit set and complete diff against that base. Require an explicit user or ticket source for a non-default target; unexplained branch-only commits block readiness.

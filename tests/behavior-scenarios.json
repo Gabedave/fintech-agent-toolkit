@@ -7,7 +7,7 @@
         "adr_disposition": "not-required:none",
         "trail_disposition": "not-required:not-applicable"
       },
-      "prompt": "This is a read-only investigation, so implementation readiness is not applicable. Investigate why the backend login boundary was implemented this way. Explain the evidence and do not change any files.",
+      "prompt": "Investigate why the backend login boundary was implemented this way. Explain the evidence and do not change any files.",
       "expected_playbook": "investigation",
       "expected_additional_playbooks": [],
       "expected_skills": ["fintech-mode", "how", "why"],
@@ -121,7 +121,7 @@
         "adr_disposition": "assess-after-discovery:undetermined",
         "trail_disposition": "required:local"
       },
-      "prompt": "The specific fix and its risk are unknown until CI diagnosis, so use assess-before-edit and do not claim completed adversarial scenarios yet. Follow pull request 123 until its checks and reviews are finished, even if the work spans sessions. Diagnose failures, make the necessary fixes, and push the updates. Do not merge it.",
+      "prompt": "The specific fix and its risk are unknown until CI diagnosis. Follow pull request 123 until its checks and reviews are finished, even if the work spans sessions. Diagnose failures, make the necessary fixes, and push the updates. Do not merge it.",
       "expected_playbook": "ci-failure",
       "expected_additional_playbooks": ["long-running"],
       "expected_skills": ["fintech-mode", "ci-babysit", "how", "pre-push-review", "work-continuity"],
@@ -156,7 +156,7 @@
         "adr_disposition": "not-required:none",
         "trail_disposition": "not-required:not-applicable"
       },
-      "prompt": "This small mechanical documentation edit is outside implementation readiness, so do not claim capability preflight. Fix the spelling mistake in the README heading. Do not push the change.",
+      "prompt": "Fix the spelling mistake in the README heading. Do not push the change.",
       "expected_playbook": "none",
       "expected_additional_playbooks": [],
       "expected_skills": ["fintech-mode"],

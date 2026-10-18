@@ -1,6 +1,8 @@
 {
   "version": 1,
-  "default_for_nontrivial": ["how"],
+  "default_for_nontrivial": [
+    "how"
+  ],
   "signals": {
     "ownership_uncertain": "blast-radius",
     "historical_intent_material": "why",

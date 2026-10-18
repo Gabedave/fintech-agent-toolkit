@@ -280,8 +280,8 @@ def score_review(case, variant, result, expected_snapshot=None,
 
 def load_suite():
     suite = json.loads(SUITE.read_text())
-    if set(suite) != {"version", "cases"} or suite["version"] != 1 or len(suite["cases"]) != 4:
-        raise EvaluationError("pilot must contain exactly four paired cases")
+    if set(suite) != {"version", "cases"} or suite["version"] != 1 or len(suite["cases"]) != 5:
+        raise EvaluationError("pilot must contain exactly five paired cases")
     seen = set()
     for case in suite["cases"]:
         if set(case) != {"id", "lines", "required_invariants", "counterexample", "neutral"}:

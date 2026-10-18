@@ -12,6 +12,13 @@ Do not invent findings. Style preference is not a blocker unless it creates a co
 
 Review correctness, invalid states, security boundaries, transactions, retries, timeouts, idempotency, partial failure, cleanup, resource use, contracts, migrations, dependencies, test quality, accessibility, privacy, observability, and maintainability where applicable.
 
+For `material-bound-required` work, inspect the pre-edit resource lifecycle record: the workload and
+growth dimension, ceiling, replica/concurrency multiplier, cleanup, safe saturation behaviour, and
+repository-owned proof and aggregate rollout signal. Confirm the bound without hiding a correctness or recovery failure; retained
+financial truth is not disposable cache. Missing essential bound or proof is not ready for team review;
+an unavailable required measurement leaves the review incomplete. `not-material` needs only the concrete
+reason, not a benchmark. Product-specific limits and commands belong to the repository verifier.
+
 For contested or high-risk design, also review the caller-facing data shape, alternatives considered, compatibility and rollback, ownership of mutable state, verification seam, and any implementation evidence that should have invalidated the selected design. Use this existing gate instead of creating a separate `interrogate` step.
 
 For every acceptance criterion retain:

@@ -1,6 +1,6 @@
 ---
 name: maintain-verification
-description: Audit and repair fintech product repository verifiers against current source and safe live behaviour. Use automatically when verifier assets or proof boundaries change, a critical feature is unmapped, or verification appears stale; never weaken proof to hide a product regression.
+description: Audit and repair fintech repository verifiers against current source and safe live behaviour. Use automatically when verifier assets or proof boundaries change, a critical feature is unmapped, or verification appears stale; never weaken proof to hide a product regression.
 ---
 
 # Maintain Verification

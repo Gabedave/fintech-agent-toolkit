@@ -1,6 +1,6 @@
 ---
 name: reflect
-description: Review a completed or difficult Fintech engineering task and propose evidence-backed improvements to skills, repository instructions, scripts, tests, or CI. Use after delivery problems or repeated friction; never change shared policy automatically.
+description: Review a completed or difficult fintech engineering task and propose evidence-backed improvements to skills, repository instructions, scripts, tests, or CI. Use after delivery problems or repeated friction; never change shared policy automatically.
 ---
 
 # Reflect

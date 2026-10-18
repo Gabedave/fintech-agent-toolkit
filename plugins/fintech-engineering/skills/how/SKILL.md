@@ -10,10 +10,12 @@ Build a trustworthy current-system model before proposing or reviewing a change.
 ## Trace the real path
 
 1. Define the user, operator, job, API, or provider boundary being explained.
-2. Start at the actual entry point and follow callers, data shapes, state transitions, persistence, configuration, external boundaries, and observable outcomes.
-3. Read tests and repository verifier maps as claims to validate against source, not as substitutes for source inspection.
-4. Trace important failure, retry, authorization, concurrency, and cleanup paths where they affect the explanation.
-5. Use read-only runtime or observability evidence when static inspection cannot settle current behaviour and the workspace authorization allows it.
+2. Before making current-source claims, resolve the repository's default branch and authoritative base SHA from its host. Run the installed plugin's [snapshot helper](../../scripts/verify_repository_snapshot.py) with the local base ref and authoritative base SHA, then record the exact head, divergence, authority state, and dirty state.
+3. Treat `attention` as a source-selection decision, not permission to repair the checkout. Prefer read-only host inspection or, when local writes are authorized, a disposable worktree at the authoritative revision. The preflight and this skill must not update or clean the user's checkout.
+4. Start at the actual entry point and follow callers, data shapes, state transitions, persistence, configuration, external boundaries, and observable outcomes.
+5. Read tests and repository verifier maps as claims to validate against source, not as substitutes for source inspection.
+6. Trace important failure, retry, authorization, concurrency, and cleanup paths where they affect the explanation.
+7. Use read-only runtime or observability evidence when static inspection cannot settle current behaviour and the workspace authorization allows it.
 
 For a contained path, investigate directly. For a system spanning several independent areas, split read-only exploration by boundary when safe and reconcile it into one model; use a sequential fallback when parallel investigation is unavailable.
 

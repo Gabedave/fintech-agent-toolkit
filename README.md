@@ -4,6 +4,12 @@ Codex skills for investigating, designing, changing, verifying, and reviewing fi
 
 This is a company-neutral adaptation of a private fintech engineering toolkit. It contains no product code, credentials, provider configuration, or repository-specific verification maps.
 
+## Shared source and company template
+
+`foundation/` owns the shared skill bodies, helpers, renderer and conformance corpus. `profiles/gabedave.json` produces this plugin; `profiles/example.json` is a fictitious company starting point. Generated native plugins remain self-contained. See [company onboarding](docs/template-onboarding.md) and the [foundation decision](docs/decisions/2026-10-18-pinned-fintech-foundation.md).
+
+The lock pins the foundation commit/version/content digest and company profile. Compare installed bytes and fresh-task identity separately; changing source does not update an active installation. Model decision records and deterministic evaluator controls do not prove that workflow actions occurred. Product CI enforcement remains a separate integration.
+
 ## Install
 
 1. Clone this repository.
@@ -38,6 +44,7 @@ Add a short root `AGENTS.md` identifying the product, its repositories and relea
 ## Validate
 
 ```sh
+python3 scripts/check_foundation.py
 python3 scripts/validate.py
 python3 scripts/evaluate.py
 python3 scripts/evaluate_behavior.py --check

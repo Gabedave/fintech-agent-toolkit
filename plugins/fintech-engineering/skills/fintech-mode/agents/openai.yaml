@@ -1,7 +1,7 @@
 interface:
   display_name: "Fintech Mode"
   short_description: "Route complex work through verified playbooks"
-  default_prompt: "Use $fintech-mode to complete this Fintech engineering task with proportionate verification."
+  default_prompt: "Use $fintech-mode to complete this fintech engineering task with proportionate verification."
 
 policy:
   allow_implicit_invocation: true

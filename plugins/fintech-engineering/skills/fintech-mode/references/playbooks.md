@@ -1,4 +1,4 @@
-# Fintech engineering playbooks
+# fintech engineering playbooks
 
 Choose one primary playbook for the requested outcome. Add another only for a distinct requested outcome with its own steps; supporting skills do not imply additional playbooks. In particular, verifier updates inside a feature stay in the feature playbook, and defects fixed during pull-request check follow-through stay in the CI-failure playbook. Put the selected steps in the working plan verbatim enough that completion and explicit skips remain auditable.
 
