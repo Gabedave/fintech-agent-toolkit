@@ -18,7 +18,8 @@ def assess(observation, stream=None, chronology=None):
         # actual observer transport. Actual runs never receive this fallback.
         complete = observation.get('process', {}).get('kind') == 'sensitivity-only'
         return {'effects_complete': complete, 'state_covered': complete,
-                'contradictions': [], 'pending': not complete}
+                'contradictions': [], 'pending': not complete, 'legacy_fixture': complete,
+                'source_supported': False, 'primary_complete': False, 'unresolved': []}
     try:
         journal, journal_valid = read_host_capture(paths['journal'], lines=True)
         _, state_valid = read_host_capture(paths['state'])
@@ -29,7 +30,8 @@ def assess(observation, stream=None, chronology=None):
         evidence = chronology if chronology is not None else capture(observation)
     except (OSError, KeyError, ValueError, TypeError):
         return {'effects_complete': False, 'state_covered': False,
-                'contradictions': [], 'pending': True}
+                'contradictions': [], 'pending': True, 'legacy_fixture': False,
+                'source_supported': False, 'primary_complete': False, 'unresolved': []}
 
     coverage = evidence.get('coverage', {})
     primary_complete = bool(coverage) and all(
@@ -47,7 +49,8 @@ def assess(observation, stream=None, chronology=None):
                 # whose report IDs can describe visibility rather than RPC IDs.
                 # No actual run receives this no-sidecar construction premise.
                 return {'effects_complete': True, 'state_covered': True,
-                        'contradictions': [], 'pending': False}
+                        'contradictions': [], 'pending': False, 'legacy_fixture': True,
+                        'source_supported': False, 'primary_complete': True, 'unresolved': []}
 
     starts = []
     completed = []
@@ -101,15 +104,34 @@ def assess(observation, stream=None, chronology=None):
             missing = True
     complete = bool(primary_complete and journal_valid
                     and not pending and not ambiguous and not missing and not contradictions)
+    from .source_binding import validate
+    source_supported = validate(observation) is not None
+    unresolved = pending + [call for call in completed if not call['used']]
     return {'effects_complete': complete, 'state_covered': complete and state_valid,
-            'contradictions': sorted(set(contradictions)), 'pending': not complete or not state_valid}
+            'contradictions': sorted(set(contradictions)),
+            'pending': not complete or not state_valid,
+            'legacy_fixture': False, 'source_supported': source_supported,
+            'primary_complete': primary_complete, 'unresolved': unresolved}
 
 
 def mutations(observation, coverage):
-    """A snapshot delta is outside-tool evidence only with operation coverage."""
+    """Classify each delta against the actual unresolved operation effects."""
     events = observation.get('events', [])
     latest = events[-1]['after'] if events else observation.get('initial_files', {})
     final = observation.get('final_files', {})
     changed = sorted(name for name in latest.keys() | final.keys()
                      if latest.get(name) != final.get(name))
-    return (changed, []) if coverage['effects_complete'] else ([], changed)
+    if coverage.get('legacy_fixture'):
+        return (changed, []) if coverage['effects_complete'] else ([], changed)
+    if not coverage.get('source_supported') or not coverage.get('primary_complete'):
+        return [], changed
+    from .host import possible_file_effects
+    facts = observation.get('initial', {}).get('facts', {})
+    possible = set()
+    for call in coverage.get('unresolved', []):
+        scope = possible_file_effects(call['tool'], call['args'], facts)
+        if scope is None:
+            return [], changed
+        possible.update(scope)
+    return ([name for name in changed if name not in possible],
+            [name for name in changed if name in possible])

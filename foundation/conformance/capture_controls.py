@@ -989,7 +989,11 @@ def actual(spec, root):
 
     def transport(command, env, cwd, output, timeout, prompt=None):
         config = pathlib.Path(output) / 'host-config.json'
-        raw = real_stream([sys.executable, str(root / 'producer.py'), str(C), str(config), str(root / 'control.json'), '--json'], env, cwd, output, 0.7)
+        from .source_binding import prepare_sensitivity_launch
+        executed = [sys.executable, str(root / 'producer.py'), str(C), str(config), str(root / 'control.json'), '--json']
+        launch = prepare_sensitivity_launch(output, executed, root / 'producer.py', sha256(PROGRAM.encode()),
+                                             input_paths=[root / 'control.json'])
+        raw = real_stream(executed, env, cwd, output, 0.7, source_launch=launch)
         cfg = json.loads(config.read_text())
         cap = spec['capture']
         changed = []

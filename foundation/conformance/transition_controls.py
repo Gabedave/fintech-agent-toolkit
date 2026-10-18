@@ -1050,7 +1050,10 @@ else:
         mode = ident
         if ident == 'P-interrupted-unknown-prefix':
             mode += '-partial'
-        raw = real_stream([sys.executable, str(script), source, str(config), mode, '--json'], env, cwd, output, 0.7)
+        from .source_binding import prepare_sensitivity_launch
+        executed = [sys.executable, str(script), source, str(config), mode, '--json']
+        launch = prepare_sensitivity_launch(output, executed, script, sha256(script.read_bytes()))
+        raw = real_stream(executed, env, cwd, output, 0.7, source_launch=launch)
         if 'unknown-location' in ident:
             raw.pop('capture_sha256', None)
         if 'fragment' in ident:

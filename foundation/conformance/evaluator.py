@@ -485,7 +485,9 @@ def action_state_score(case, variant, observation, confirmed_entries=(), chronol
         if previous.get('after') != current.get('before'):
             errors.append('unobserved mutation between operations')
     if events and events[-1].get('after') != o.get('final_files'):
-        errors.append('final file snapshot differs from last observed operation' if auxiliary['effects_complete']
+        known_delta = (o.get('unobserved_mutations') or
+                       auxiliary.get('legacy_fixture') and auxiliary['effects_complete'])
+        errors.append('final file snapshot differs from last observed operation' if known_delta
                       else 'final mutation capture incomplete')
     if o.get('process', {}).get('kind') not in {'actual-codex', 'sensitivity-only'}:
         errors.append('missing independent process provenance')
@@ -814,6 +816,10 @@ def sensitivity(data=None):
     with tempfile.TemporaryDirectory(prefix='auxiliary-capture-controls-') as temp:
         capture_boundaries = run_capture_boundaries(Path(temp) / 'capture')
     failures.extend(capture_boundaries['failures'])
+    from .effect_controls import run_effect_boundaries
+    with tempfile.TemporaryDirectory(prefix='specific-effect-controls-') as temp:
+        effect_boundaries = run_effect_boundaries(Path(temp) / 'effects')
+    failures.extend(effect_boundaries['failures'])
     return {
         'kind': 'evaluator-sensitivity-only',
         'model_compliance': False,
@@ -829,6 +835,8 @@ def sensitivity(data=None):
         'state_boundary_sensitivity': state_boundaries,
         'capture_boundary_controls': capture_boundaries['controls'],
         'capture_boundary_sensitivity': capture_boundaries,
+        'effect_boundary_controls': effect_boundaries['controls'],
+        'effect_boundary_sensitivity': effect_boundaries,
         'mechanism_sensitivity': mechanism,
         'language_sensitivity': language,
         'profiles': data['profiles'],

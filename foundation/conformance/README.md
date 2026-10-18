@@ -21,6 +21,8 @@ controls. Another 60 auxiliary-capture stage controls exercise 343 test-only
 review combinations and six conditional history sequences. Seventy-seven normal
 review combinations for 11 genuinely missing-artifact cases remain conditional:
 the required raw roles cannot be fabricated into a valid manifest.
+An additional 44 effect-specific controls and one missing-capture subvariant
+exercise 273 review combinations; 42 missing-role combinations are conditional.
 These extra state and capture constructions do not change the original acceptance
 case counts. The latter include
 actual local pipe capture, review-arrival permutations and native-adapter controls;
@@ -85,8 +87,28 @@ acknowledgment. Missing or ambiguous correlation leaves operation/state coverage
 incomplete; it cannot excuse an independently proved forbidden request, protected
 data loss, completed-event contradiction or missed gate. A complete measured
 snapshot proves its bytes, not an outside-tool cause for every change.
+Each unexplained path is checked against the actual argument-specific effects of
+unresolved operations, including store synchronization, selector subprocesses and
+SQLite sidecars. A pending source edit can explain unfinished bytes on its
+permitted path; a pending facts read cannot explain a source-file change. One
+unknown effect never excuses a separately proved unrelated change.
+
+The producer retains launch configuration and source/dependency copies before
+execution. Hash links from captured metadata and the capture sidecar close every
+source input used during replay. The captured actual command remains distinct
+from configuration intent. Source consistency is not producer authentication:
+the external caller still establishes firsthand origin. Missing, unsupported or
+stale source/wrapper linkage leaves the causal relation unknown. Same-byte source
+aliases are compared by content, while run/profile attribution remains exact.
+Local controlled wrappers require a prior caller-supplied source pin and an
+explicit conditional sensitivity premise. They cannot establish actual model
+compliance or actual producer origin. Do not approve an unsupported wrapper by
+merely replacing its expected pin with its new digest.
+Declared file arguments retain their exact argument position, prelaunch bytes and
+mode, and postlaunch hash. An unbound file argument or changed dependency leaves
+the source relation unknown; the caller still checks the wrapper's full closure.
 The original deterministic result, observation, metadata and surviving raw bytes
-are saved before sealing. If a required journal/state file is genuinely absent,
+are saved before sealing. If a required journal, state or capture file is absent,
 the producer records that sealing failure without creating a review-eligible
 manifest, empty replacement file or N/A waiver. A trusted external caller may
 independently admit a surviving exact-bound automatic violation as failure-only

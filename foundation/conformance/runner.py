@@ -70,10 +70,14 @@ def safe_env(home):
             'PYTHONDONTWRITEBYTECODE':'1'}
 
 
-def stream_process(command, env, cwd, output, timeout, prompt=None):
+def stream_process(command, env, cwd, output, timeout, prompt=None, source_launch=None):
     """Drain both pipes continuously and always kill the complete process group."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
+    from .source_binding import launch_reference
+    launch_path = Path(source_launch) if source_launch is not None else output / 'effect-launch.json'
+    source_reference = launch_reference(output, launch_path) if launch_path.exists() else None
+    source_purpose = json.loads(launch_path.read_bytes()).get('purpose') if source_reference else None
     started_at_ns = time.monotonic_ns()
     p=subprocess.Popen(command,cwd=cwd,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,start_new_session=True)
@@ -218,10 +222,17 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
     capture = {'producer': 'pipe-capture-v1', 'source': 'stdout.jsonl',
                'process_started_at_ns': started_at_ns, 'from_process_start': True,
                'stdout_sha256': digest(output / 'stdout.jsonl'),
-               'retained_lines': retained_lines, 'gaps': capture_gaps}
+               'retained_lines': retained_lines, 'gaps': capture_gaps,
+               # Only the constrained launch surface has reviewed non-secret
+               # arguments. Generic pipe callers may embed diagnostics in argv.
+               'executed_command': list(command) if source_reference else None,
+               'source_launch': source_reference,
+               'producer_run_dir':str(output.resolve().parent)}
     (output / 'capture.json').write_text(json.dumps(capture, indent=2, sort_keys=True))
     return {
         'command': command,
+        'source_launch': source_reference,
+        'source_purpose': source_purpose,
         'pid': p.pid,
         'started_at_ns': started_at_ns,
         'exit': p.returncode,
@@ -377,6 +388,7 @@ def prompt_for(case, variant, profile, implicit=False):
 
 
 def run_one(case, variant, profile, installed, home, output, args, implicit=False):
+    output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     output.chmod(448)
     workspace = output / 'workspace'
@@ -415,7 +427,14 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
         'workspace': str(workspace),
         'state': str(state_path),
         'journal': str(journal),
-        'installed': str(installed)
+        'installed': str(installed),
+        'run_identity': {
+            'run_dir': str(output), 'candidate_revision': getattr(args, 'candidate_revision', None),
+            'candidate_tree_digest': candidate_digest, 'installed_tree_digest': installed_digest,
+            'profile_sha256': digest(args.profile), 'profile_role': args.profile_role,
+            'harness_digest': tree_hash(Path(__file__).parent)[0],
+            'environment_sha256': hashlib.sha256(json.dumps(safe_env(home), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        }
     }
     config_path = private / 'host-config.json'
     config_path.write_text(json.dumps(config))
@@ -430,11 +449,14 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
         command[2:2] = ['--model', args.model]
     prompt = prompt_for(case, variant, profile, implicit)
     (private / 'prompt.txt').write_text(prompt)
+    from .source_binding import prepare_launch
+    prepare_launch(private, command, Path(__file__).parent, config_path)
     raw = stream_process(command, safe_env(home), workspace, private, args.timeout_seconds, prompt)
     events, journal_complete = read_host_capture(journal, lines=True)
     final, state_complete = read_host_capture(state_path)
     end = files(workspace)
-    process={'kind':'actual-codex','started':True,'started_at_ns':raw['started_at_ns'],'exit':raw['exit'],'timed_out':raw['timed_out'],
+    process={'kind':'sensitivity-only' if raw.get('source_purpose') == 'controlled-sensitivity' else 'actual-codex',
+             'started':True,'started_at_ns':raw['started_at_ns'],'exit':raw['exit'],'timed_out':raw['timed_out'],
              'tool_stream_verified':verify_stream(
                  events,
                  raw['events']
@@ -455,14 +477,12 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
              'journal':str(journal),
              'stdout':str(private/'stdout.jsonl'),
              'state':str(state_path),
-             'capture':str(private/'capture.json')
+             'capture':str(private/'capture.json'), 'metadata':str(output/'metadata.json')
          }}
     obs['denied_attempts'] = denied_attempts
     obs['raw_attempts'] = attempts
     obs['implicit_routing'] = implicit
-    from .auxiliary import assess, mutations
-    auxiliary = assess(obs, stream=raw['events'])
-    obs['unobserved_mutations'], obs['mutation_capture_gaps'] = mutations(obs, auxiliary)
+    from .source_binding import postlaunch_sources
     metadata={'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
               'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
               'foundation_lock':json.loads((Path(args.candidate)/'foundation-lock.json').read_text()) if (Path(args.candidate)/'foundation-lock.json').exists() else None,'candidate_tree_digest':candidate_digest,
@@ -473,7 +493,10 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
                   'effective_model',
                   None
               ),'model_probe':getattr(args,'model_probe',None),'feature_probe':getattr(args,'feature_probe',None),'model_observed':[e for e in raw['events'] if 'model' in json.dumps(e).lower() and e.get('type') in ('thread.started','turn.started','turn.completed')],
-              'invocation':'implicit' if implicit else 'explicit','command':command}
+              'invocation':'implicit' if implicit else 'explicit','command':command,
+              'executed_command':raw['command'], 'source_launch':raw.get('source_launch'),
+              'source_files_after':postlaunch_sources(private, raw.get('source_launch')),
+              'producer_run_dir':str(output)}
     if not metadata['model_observed']:
         metadata['model_observed'] = getattr(args, 'effective_model', None) or 'not reported; effective model unverified'
     metadata['harness_revision'] = subprocess.check_output(['git', '-C', str(Path(__file__).resolve().parents[2]), 'rev-parse', 'HEAD'], text=True).strip()
@@ -481,8 +504,12 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     metadata['profile_role'] = args.profile_role
     metadata['candidate_file_hashes'] = candidate_files
     metadata['installed_file_hashes'] = installed_files
-    (output / 'observation.json').write_text(json.dumps(obs, indent=2, sort_keys=True))
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2, sort_keys=True))
+    obs['process']['metadata_sha256'] = digest(output / 'metadata.json')
+    from .auxiliary import assess, mutations
+    auxiliary = assess(obs, stream=raw['events'])
+    obs['unobserved_mutations'], obs['mutation_capture_gaps'] = mutations(obs, auxiliary)
+    (output / 'observation.json').write_text(json.dumps(obs, indent=2, sort_keys=True))
     result = score(case, variant, obs)
     if candidate_files != installed_files:
         result['status'] = 'fail'
@@ -511,7 +538,8 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
         manifest_path = seal_observed_run(output, case, variant, obs, metadata, args.profile_role)
     except FileNotFoundError:
         missing = [role for role, path in (
-            ('raw_tool_journal', journal), ('final_state', state_path)) if not path.exists()]
+            ('raw_tool_journal', journal), ('final_state', state_path),
+            ('capture_metadata', private / 'capture.json')) if not path.exists()]
         if not missing:
             raise
         # These are unavailable sources, not empty captured artifacts. The
@@ -547,6 +575,9 @@ def seal_observed_run(output, case, variant, observation, metadata, profile_role
         ('final-files', 'final_file_snapshot', 'observer/final-files.json'), ('chronology', 'chronology', 'observer/chronology.json'),
         ('observation', 'observation', 'observation.json'), ('metadata', 'metadata', 'metadata.json'),
         ('capture', 'capture_metadata', 'observer/capture.json'))]
+    from .source_binding import artifacts
+    records.extend(artifact(output, 'effect-source-' + str(number), 'effect_source', path)
+                   for number, path in enumerate(artifacts(output / 'observer')))
     return seal_run(output, binding, profile_role + ':' + metadata['candidate_revision'] + ':' + output.name, 'observed', case['id'], variant['id'], profile_role,
                     records, chronology=chronology)
 

@@ -942,3 +942,54 @@ class AuxiliaryCaptureBoundaryRegressionTests(unittest.TestCase):
             self.assertFalse((run / 'observer/state.json').exists())
             retained = json.loads((run / 'result.json').read_text())
             self.assertEqual(result, retained)
+
+
+class SpecificEffectBoundaryRegressionTests(unittest.TestCase):
+    def test_control_argument_is_retained_and_bound_before_execution(self):
+        from foundation.conformance.effect_controls import actual, SPECS
+        from foundation.conformance.source_binding import validate
+        with tempfile.TemporaryDirectory() as tmp:
+            _, _, _, run, _, _ = actual(SPECS[0], Path(tmp) / 'input-closure')
+            observation = json.loads((run / 'observation.json').read_text())
+            private = run / 'observer'
+            launch = json.loads((private / 'sensitivity-effect-launch.json').read_text())
+            self.assertIn('inputs', launch, 'Consumed control bytes are absent from the source closure')
+            control = next(row for row in launch['inputs'] if row['argument_index'] == 4)
+            retained = private / control['record']['path']
+            self.assertEqual((run.parent / 'control.json').read_bytes(), retained.read_bytes())
+            self.assertEqual(launch['executed_command'][4], control['original_path'])
+            self.assertEqual({'purpose': 'controlled-sensitivity'}, validate(observation))
+            retained.write_bytes(b'{"changed-after-sealing":true}')
+            self.assertIsNone(validate(observation))
+
+    def test_source_closure_rejects_foreign_metadata_and_unsupported_shapes(self):
+        from foundation.conformance.effect_controls import actual, SPECS
+        from foundation.conformance.source_binding import validate
+        from foundation.conformance.claim_review import sha256
+        with tempfile.TemporaryDirectory() as tmp:
+            _, _, _, run, _, _ = actual(SPECS[0], Path(tmp) / 'source-closure')
+            observation = json.loads((run / 'observation.json').read_text())
+            self.assertEqual({'purpose': 'controlled-sensitivity'}, validate(observation))
+            foreign = run.parent / 'foreign-metadata.json'
+            foreign.write_bytes((run / 'metadata.json').read_bytes())
+            changed = copy.deepcopy(observation)
+            changed['observer_paths']['metadata'] = str(foreign)
+            self.assertIsNone(validate(changed))
+            metadata = json.loads((run / 'metadata.json').read_bytes())
+            metadata['source_files_after'] = []
+            raw = json.dumps(metadata).encode()
+            (run / 'metadata.json').write_bytes(raw)
+            changed = copy.deepcopy(observation)
+            changed['process']['metadata_sha256'] = sha256(raw)
+            self.assertIsNone(validate(changed))
+
+    def test_fixed_effect_paths_and_capture_boundaries(self):
+        from foundation.conformance.effect_controls import run_effect_boundaries
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_effect_boundaries(Path(tmp) / 'effects')
+            self.assertEqual(44, result['controls'])
+            self.assertEqual(1, result['additional_subvariants'])
+            self.assertEqual(273, result['executed_review_combinations'])
+            self.assertEqual(42, result['conditional_review_combinations'])
+            self.assertEqual([], result['failures'], result['failures'])
+            self.assertFalse(result['model_compliance'])

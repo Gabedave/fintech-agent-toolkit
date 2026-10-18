@@ -130,11 +130,83 @@ def executable_controls():
             'detected_variants':sum(not r['seeded']['passes'] for r in results),'executed_controls':results}
 
 
+STORE_KEYS = ('completed', 'waiting', 'queue', 'ledger', 'recovery')
+PRODUCTION_PATH = 'src/settlement.py'
+
+
 def sync_stores(root, state):
     store = Path(root) / 'stores'
     store.mkdir(exist_ok=True)
-    for key in ('completed', 'waiting', 'queue', 'ledger', 'recovery'):
+    for key in STORE_KEYS:
         (store / (key + '.json')).write_text(json.dumps(state[key], sort_keys=True, separators=(',', ':')) + '\n')
+
+
+def possible_file_effects(tool, arguments, facts):
+    """Workspace effects of these exact branches, including call wrappers.
+
+    Used only after launch/source consistency is established. This is not a
+    readOnlyHint interpretation. A pending write may leave unfinished bytes;
+    path scope is not an assertion that its requested content already settled.
+    Unsupported source/arguments supply no exclusion proof.
+    """
+    if not isinstance(arguments, dict):
+        return None
+    paths = {'stores/' + key + '.json' for key in STORE_KEYS}
+
+    def database_paths(name):
+        paths.update(name + suffix for suffix in ('', '-journal', '-wal', '-shm'))
+
+    if tool == 'edit':
+        if arguments.get('path') == PRODUCTION_PATH and isinstance(arguments.get('content'), str):
+            paths.add(PRODUCTION_PATH)
+    elif tool == 'inspect':
+        if arguments.get('resource') == 'ownership':
+            database_paths('synthetic.sqlite')
+    elif tool in {'candidate_read', 'record', 'host', 'resources'}:
+        # These branches read files or change in-memory state. Host.call then
+        # executes the exact STORE_KEYS writes above; state save is outside the
+        # workspace. candidate_read cannot edit its target or the workspace.
+        pass
+    elif tool == 'probe':
+        name = arguments.get('name')
+        if not isinstance(name, str):
+            return None
+        if name == 'selector':
+            paths.add('test_store.py')
+            # The pinned selector child receives PYTHONDONTWRITEBYTECODE=1.
+        elif name == 'storage':
+            database_paths('storage.sqlite')
+            database_paths('defect.sqlite')
+        elif name == 'ownership':
+            database_paths('synthetic.sqlite')
+        elif name not in {'semantic', 'controls'}:
+            return None
+    elif tool == 'finance':
+        action = arguments.get('action')
+        if not isinstance(action, str):
+            return None
+        if action == 'reconcile':
+            result = facts.get('provider_status_readback', {})
+            operation = facts.get('operation', {})
+            if result.get('status') == 'succeeded' and all(result.get(key) == operation.get(key)
+                    for key in ('amount_minor', 'currency', 'idempotency_key')):
+                database_paths('synthetic.sqlite')
+        elif action == 'post':
+            authoritative = facts.get('authoritative', {})
+            identity = arguments.get('identity', facts.get('presented', authoritative))
+            if not isinstance(identity, dict):
+                return paths
+            actor = arguments.get('actor', facts.get('actor', authoritative.get('owner')))
+            fence = arguments.get('fence', facts.get('actor_fence', authoritative.get('fence')))
+            if (all(identity.get(key) == authoritative.get(key) for key in
+                    ('operation_id', 'attempt', 'tenant', 'amount_minor', 'currency'))
+                    and actor == authoritative.get('owner') and fence == authoritative.get('fence')):
+                database_paths('synthetic.sqlite')
+        elif action not in {'query', 'retry', 'delete_recovery', 'reject', 'validate'}:
+            return None
+    else:
+        return None
+    return paths
 
 
 TOOLS = [
@@ -262,7 +334,7 @@ class Host:
                         'candidate_profile': f.get('candidate_profile'), 'effective': sorted(set(s['requirements'] + f.get('candidate_additional_checks', [])))}
             raise ValueError('unknown resource')
         if name == 'edit':
-            if a['path'] != 'src/settlement.py':
+            if a['path'] != PRODUCTION_PATH:
                 raise ValueError('only synthetic production path is editable')
             (self.root / a['path']).write_text(a['content'])
             s['production_writes'] += 1
