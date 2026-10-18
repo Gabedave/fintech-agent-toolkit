@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "default_for_nontrivial": ["how"],
+  "signals": {
+    "ownership_uncertain": "blast-radius",
+    "historical_intent_material": "why",
+    "architecture_boundary": "architect",
+    "verification_changed_or_stale": "maintain-verification",
+    "long_running_or_handoff": "work-continuity",
+    "candidate_change": "pre-push-review",
+    "pull_request_followthrough": "ci-babysit"
+  },
+  "authorization": {
+    "implicit_actions": [],
+    "implementation_delivery_actions": [
+      "edit",
+      "commit",
+      "push",
+      "open-pull-request"
+    ],
+    "plan_ledger_actions": [
+      "edit",
+      "commit",
+      "push",
+      "open-pull-request",
+      "merge",
+      "deploy"
+    ],
+    "explicit_actions": [
+      "edit",
+      "commit",
+      "push",
+      "open-pull-request",
+      "merge",
+      "deploy",
+      "ticket-update",
+      "team-message"
+    ]
+  },
+  "playbooks": [
+    "none",
+    "investigation",
+    "bug-fix",
+    "feature",
+    "refactor",
+    "performance",
+    "prototype",
+    "verification-maintenance",
+    "long-running",
+    "ci-failure",
+    "pull-request-preparation"
+  ],
+  "forbidden_capabilities": [
+    "interrogate",
+    "automatic-merge",
+    "automatic-deploy",
+    "transcript-mining"
+  ]
+}

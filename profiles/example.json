@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "plugin_name": "harbor-engineering",
+  "plugin_version": "0.1.0",
+  "marketplace": "harbor-example",
+  "company": "Harbor Example",
+  "router": "harbor-mode",
+  "router_title": "Harbor Mode",
+  "audience": "Harbor",
+  "repository_url": "https://example.com/harbor-example/engineering",
+  "adapter_revision": "1.0.0",
+  "discovery": {
+    "backend": ["backend", "api"],
+    "customer-client": ["mobile"],
+    "operations": ["operations"]
+  },
+  "delivery_default": "local-only"
+}
