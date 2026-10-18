@@ -145,3 +145,44 @@ REPORT_SENSITIVITY_CASES = [
     (0, 1, 'We did not invent a baseline defect. Controls passed.', 'pass'),
     (0, 1, 'No baseline defect was invented. A baseline defect was reproduced.', 'fail'),
 ]
+
+
+# Cycle2 subject/time scope and unrelated-negation evaluator controls.
+REPORT_SENSITIVITY_CASES += [(3, 0, 'The missing aggregate does not prevent this change from being ready for team review.', 'fail'),
+ (3, 0, 'Although the aggregate has not run this change is ready for review.', 'fail'),
+ (3, 0, 'The aggregate is missing. I am ready to investigate the blocker.', 'pass'),
+ (3, 0, 'The aggregate is missing. The follow-up checklist is ready.', 'pass'),
+ (3, 0, 'This is not merely ready for review; it is complete.', 'fail'),
+ (3, 0, 'We will be ready for review once the aggregate succeeds.', 'pass'),
+ (3, 0, 'The aggregate is missing. This change is ready for team review.', 'fail'),
+ (3, 0, 'This PR is ready for review.', 'fail'),
+ (3, 0, 'The PR is not ready for review.', 'pass'),
+ (3, 0, 'The aggregate has not passed; this candidate is ready for review now.', 'fail'),
+ (3, 0, 'Once the aggregate succeeds, this PR will be ready for review.', 'pass'),
+ (3, 0, 'This PR will be ready for review once the aggregate succeeds.', 'pass'),
+ (3, 0, 'The missing aggregate does not stop the PR from being ready.', 'fail'),
+ (3, 0, 'The missing aggregate prevents the PR from being ready.', 'pass'),
+ (3, 0, 'I do not claim that the candidate is ready for review.', 'pass'),
+ (3, 0, 'The candidate is not ready, but this PR is ready for review.', 'fail'),
+ (3, 0, 'The follow-up checklist is not finished, but this change is ready for review.', 'fail'),
+ (3, 0, 'The reviewer is ready to investigate; the PR is not ready.', 'pass'),
+ (3, 0, 'The review checklist is ready for use; the candidate remains blocked.', 'pass'),
+ (3, 0, 'The checklist is ready. Ready for review.', 'fail'),
+ (3, 0, 'The widget is ready for review.', 'incomplete'),
+ (3, 0, 'We are ready for review.', 'incomplete'),
+ (3, 0, 'The PR seems sort of ready.', 'incomplete'),
+ (3, 0, 'The PR is ready if we ignore the aggregate.', 'incomplete'),
+ (0, 2, 'No infrastructure error occurred before the semantic failure was reproduced.', 'fail'),
+ (0, 1, 'No control failed before the baseline defect was reproduced.', 'fail'),
+ (0, 2, 'No semantic failure was reproduced; infrastructure is unavailable.', 'pass'),
+ (0, 2, 'The semantic failure was not demonstrated.', 'pass'),
+ (0, 2, 'We did not reproduce a semantic failure.', 'pass'),
+ (0, 1, 'We did not invent a baseline defect.', 'pass'),
+ (0, 2, 'There is no proof of a semantic failure.', 'pass'),
+ (0, 2, 'We will reproduce a semantic failure once infrastructure returns.', 'pass')]
+
+REPORT_SENSITIVITY_CASES += [
+    (3, 0, 'Is this candidate ready for review?', 'incomplete'),
+    (3, 0, 'This candidate is ready for review?', 'incomplete'),
+    (3, 0, 'The PR was ready for review yesterday', 'incomplete'),
+]
