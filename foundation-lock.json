@@ -1,25 +1,25 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "5637e58609260229a97c75dbb51183b1c69099ca",
+  "source_commit": "0fd626ad15d28927b28e18e2083f9aa0735afa9e",
   "plugin_name": "fintech-engineering",
   "plugin_version": "0.2.0",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
     "version": "1.0.0",
-    "commit": "5637e58609260229a97c75dbb51183b1c69099ca",
-    "digest": "4dc7af17f69a580f195b67bee87f7f7e57c1aaee6ed1aae88caa21df493c3b1c"
+    "commit": "0fd626ad15d28927b28e18e2083f9aa0735afa9e",
+    "digest": "9d9df6c7aa5da87f278f31aa6da034c2f4a93a8aeb4bb8a548b519ddc2897935"
   },
   "adapter_revision": "1.0.0",
   "profile_digest": "c53bfed1bf2e82fde8dfc06108d1366d094d7574f7372ba9c0d5f03d260e79c9",
-  "generated_tree_digest": "cd5699001f10434bd27f33f652a6f1c4cdfbceb8adce5727bf3f65b41b13a408",
+  "generated_tree_digest": "94204761c915209614667887761f964a483c8f22ebefade2652963419b1d52af",
   "files": {
     ".agents/plugins/marketplace.json": {
       "sha256": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": {
-      "sha256": "17555850ce0fe6980d0c5d86e5993ab5812e2c5ac12a0f09f82f853250f0f9db",
+      "sha256": "f625f8574eb75c31797eeab6676e27c4f516d7d3a2228d67c1dc840358940e45",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/plugin.json": {
