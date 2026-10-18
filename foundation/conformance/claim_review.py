@@ -109,16 +109,13 @@ def report_projection(root, artifacts):
     instead of JSONL, declared by source_format='text'. There is no host claim.
     """
     rows = []
-    stream_notes = []
-    for source in artifacts:
-        if source['role'] == 'raw_process_stream' and source.get('source_format', 'jsonl') == 'jsonl':
-            for number, line in enumerate(_path(root, source['path']).read_bytes().splitlines(), 1):
-                value = json.loads(line)
-                item = value.get('item', {})
-                if value.get('type') == 'item.completed' and item.get('type') == 'mcp_tool_call' and item.get('tool') == 'record':
-                    arguments = item.get('arguments', {})
-                    arguments = json.loads(arguments) if isinstance(arguments, str) else arguments
-                    stream_notes.append((number, arguments))
+    from .chronology import build, message_phase
+    raw_streams = [(source['artifact_id'], [json.loads(line) for line in _path(root, source['path']).read_bytes().splitlines()])
+                   for source in artifacts if source['role'] == 'raw_process_stream' and source.get('source_format', 'jsonl') == 'jsonl']
+    journal = [json.loads(line) for source in artifacts if source['role'] == 'raw_tool_journal'
+               for line in _path(root, source['path']).read_bytes().splitlines()]
+    order = build(raw_streams, journal)
+    source_rank = {name: index for index, (name, _) in enumerate(raw_streams)}
     for source in artifacts:
         role = source['role']
         if role not in {'raw_process_stream', 'raw_tool_journal', 'raw_decision'}:
@@ -143,10 +140,8 @@ def report_projection(root, artifacts):
                 text = value.get('arguments', {}).get('text')
                 if not isinstance(text, str):
                     raise ValueError('record text is not UTF-8 text')
-                matches = [number for number, args in stream_notes if args == value['arguments']]
-                position = matches[0] if matches else 0
-                if matches:
-                    stream_notes.remove((position, value['arguments']))
+                call = order['calls'].get(value['seq'])
+                position = (source_rank[call['source']], call['end']) if call else (len(raw_streams), value['seq'])
                 rows.append({'_position': position, 'text': text, 'phase': 'original-note', 'event_seq': value['seq'],
                              'category': value['arguments'].get('category'),
                              'source_artifact_id': source['artifact_id'], 'source_line': line,
@@ -155,7 +150,8 @@ def report_projection(root, artifacts):
                 text = item.get('text')
                 if not isinstance(text, str):
                     raise ValueError('message text is not UTF-8 text')
-                row = {'_position': line or 0, 'text': text, 'phase': 'intermediate-message', 'event_seq': None,
+                phase, _ = message_phase([value for _, value in values], line, len(raw_streams) > 1)
+                row = {'_position': (source_rank[source['artifact_id']], line), 'text': text, 'phase': phase, 'event_seq': None,
                        'category': 'message', 'source_artifact_id': source['artifact_id'],
                        'source_line': line, 'source_field': ['item', 'text']}
                 rows.append(row)
@@ -165,7 +161,7 @@ def report_projection(root, artifacts):
                 encoded_arguments = isinstance(arguments, str)
                 arguments = json.loads(arguments) if encoded_arguments else arguments
                 if isinstance(arguments.get('text'), str):
-                    rows.append({'_position': line or 0, 'text': arguments['text'],
+                    rows.append({'_position': (source_rank[source['artifact_id']], line), 'text': arguments['text'],
                                  'phase': 'intermediate-message', 'event_seq': None,
                                  'category': 'denied-record-attempt', 'source_artifact_id': source['artifact_id'],
                                  'source_line': line,
@@ -177,9 +173,7 @@ def report_projection(root, artifacts):
                              'phase': 'intermediate-message', 'event_seq': None,
                              'category': 'structured-decision', 'source_artifact_id': source['artifact_id'],
                              'source_line': line, 'source_field': []})
-        if message_rows:
-            message_rows[-1]['phase'] = 'final-message'
-    rows.sort(key=lambda item: item.get('_position', 0))
+    rows.sort(key=lambda item: item.get('_position', (len(raw_streams) + 1, 0)))
     for row in rows:
         row.pop('_position', None)
     return rows
@@ -398,7 +392,9 @@ def validate_review(manifest_path, receipt_path, index_path, index_sha256,
                     covered.add(item['artifact_id'])
                 if end > start:
                     occurrences.append({'predicate_key': row['predicate_key'], 'phase': source['phase'],
-                                        'event_seq': source['event_seq'], 'category': source['category']})
+                                        'event_seq': source['event_seq'], 'category': source['category'],
+                                        'source_artifact_id': source['source_artifact_id'], 'source_line': source['source_line'],
+                                        'source_field': source['source_field']})
             required = row['predicate_key'].startswith('required_observed_events::')
             if required and row['disposition'] == 'confirmed' and not any(w['end_byte'] > w['start_byte'] for w in row['witnesses']):
                 raise ValueError('required claim lacks nonempty original witness')

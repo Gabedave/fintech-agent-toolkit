@@ -686,11 +686,11 @@ class ClaimReceiptValidationTests(unittest.TestCase):
             absent = copy.deepcopy(observation)
             absent['events'] = [event for event in absent['events'] if event['tool'] != 'record']
             self.assertEqual('fail', score(case, variant, absent)['status'])
-            late = copy.deepcopy(observation)
-            late['events'] = late['events'][2:] + late['events'][:2]
-            for seq, event in enumerate(late['events'], 1):
-                event['seq'] = seq
-            self.assertEqual('fail', score(case, variant, late)['status'])
+            from foundation.conformance.chronology_controls import fixture, PLANS
+            plan = next(plan for plan in PLANS if plan['id'] == 'F6-13')
+            late_case, late_variant, late, _, _ = fixture(plan, Path(tmp) / 'actually-late')
+            self.assertEqual('fail', score(late_case, late_variant, late)['status'])
+
 
     def test_frozen_language_controls_are_staged_test_review_not_parser_authority(self):
         from foundation.conformance.claim_review import fixed_file, CONTROLS_SHA256, assigned_rows
@@ -855,6 +855,45 @@ class ClaimProjectionAndRetentionTests(unittest.TestCase):
         from foundation.conformance.claim_review import validate_review, assigned_rows
         return validate_review(**context, required_rows=assigned_rows(case['id'], variant['id']),
                                evidence_kind='sensitivity-only')
+
+
+class RawChronologyRegressionTests(unittest.TestCase):
+    def test_all_66_independently_fixed_raw_chronology_controls(self):
+        from foundation.conformance.chronology_controls import run_matrix
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_matrix(Path(tmp) / 'all-66')
+            self.assertEqual(66, result['controls'])
+            self.assertEqual(66, len({row['id'] for row in result['rows']}))
+            self.assertEqual([], result['failures'], result['failures'])
+            self.assertFalse(result['model_compliance'])
+
+    def test_native_command_journal_and_exact_utf8_decision_still_seal(self):
+        from foundation.conformance.claim_review import artifact, protocol, seal_run, validate_manifest
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            native = {'type': 'item.completed', 'item': {'type': 'command_execution',
+                      'command': 'synthetic native decision read', 'exit_code': 0}}
+            (root / 'journal.jsonl').write_text(json.dumps(native) + '\n')
+            original = '{  "decision": "café",\n "authority": "local-only" }\n'
+            (root / 'decision.json').write_text(original)
+            (root / 'stdout.jsonl').write_text(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': original}}, ensure_ascii=False) + '\n')
+            (root / 'chronology.json').write_text('[]')
+            records = [artifact(root, 'journal', 'raw_tool_journal', 'journal.jsonl'),
+                       artifact(root, 'decision', 'raw_decision', 'decision.json'),
+                       artifact(root, 'stream', 'raw_process_stream', 'stdout.jsonl'),
+                       artifact(root, 'chronology', 'chronology', 'chronology.json')]
+            records[1]['source_format'] = 'json'
+            binding = {key: 'sensitivity-only-' + key for key in protocol()['binding_required_fields']}
+            absent = {role: 'Decision-only native read; captured through retained command journal.'
+                      for role in ('prompt', 'initial_state', 'final_state', 'initial_file_snapshot', 'final_file_snapshot')}
+            path = seal_run(root, binding, 'native-decision-control', 'legacy-decisions', 'synthetic', 'native',
+                            'synthetic-adopter', records, not_applicable=absent)
+            manifest = validate_manifest(path)
+            by_id = {row['artifact_id']: row for row in manifest['artifacts']}
+            decision = next(row for row in manifest['report_surface'] if row['source_artifact_id'] == 'decision')
+            text = root / by_id[decision['artifact_id']]['path']
+            self.assertEqual(original.encode('utf-8'), text.read_bytes())
+            self.assertEqual(native, json.loads((root / 'journal.jsonl').read_text()))
 
 if __name__ == '__main__':
     unittest.main()

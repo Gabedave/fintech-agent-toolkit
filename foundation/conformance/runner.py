@@ -238,6 +238,10 @@ def verify_stream(journal, stream):
             except ValueError:
                 continue
         result = item.get('result', {})
+        if result is None and item.get('error') and item.get('server') == 'workbench':
+            # No host operation occurred. Denied attempts are independently
+            # corroborated and scored, including original attempted reports.
+            continue
         content = result.get('content', []) if isinstance(result, dict) else []
         texts = [c.get('text', '') for c in content if isinstance(c, dict) and c.get('type') == 'text']
         decoded = []

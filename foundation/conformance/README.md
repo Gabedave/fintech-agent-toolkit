@@ -15,9 +15,14 @@ python3 -m unittest tests.test_observed_conformance
 These use actual disposable synthetic host/SQLite operations and explicitly
 simulated test-only receipts. They exercise all original predicate, state and
 order controls, 57 independently fixed language controls and 72 structural
-controls. Every test result has `model_compliance: false`. Test receipts/indexes
-are rejected for actual candidate scoring. The phrase parser remains advisory;
-it cannot grant or deny compliance or supply semantic chronology witnesses.
+controls, plus 66 independently fixed raw chronology controls (and their stated
+subvariants). Every test result has `model_compliance: false`. Test receipts/indexes
+are rejected for actual candidate scoring. The shared `--check` entrypoint executes
+the 66 raw controls without a repository tests directory, so the portable template has the same regression gate. These
+fixtures construct real local host/SQLite actions and synthetic started/completed
+process events; they are evaluator sensitivity only. Temporary CLI fixtures are
+disposed after the check; independently retained gate runs keep full raw evidence.
+The phrase parser remains advisory; it cannot grant or deny compliance or supply semantic chronology witnesses.
 
 Freeze a clean candidate, obtain authorization for authenticated calls, and use
 an independently retained read-only fixture outside the checkout:
@@ -37,8 +42,15 @@ Missing claim review yields `incomplete`, even when deterministic evidence is
 eligible. A known forbidden attempt, state corruption, invalid chronology or
 missed pre-edit gate remains `fail` through missing review or timeout. Missing
 operations and unavailable evidence cannot be supplied by a receipt. A genuine
-pre-edit note with unresolved meaning is pending review; an absent or late note
-cannot be backdated by a final message or favorable reviewer verdict.
+pre-edit statement with unresolved meaning is pending review. Original notes,
+ordinary intermediate messages and captured denied report attempts can supply
+witnesses when exact raw source order proves their timing. A statement must
+precede the relevant probe **invocation**; executable semantic proof must complete
+before actual production mutation. Tool completion order alone cannot establish
+invocation order. Missing or ambiguous correspondence, visibility or cross-source
+timing is incomplete. A proven absent or late statement cannot be backdated by a
+final message or favorable reviewer verdict. The last captured message remains
+intermediate when a later tool proves that phase, even if the task times out.
 
 An acceptance owner independently assigns a context-isolated non-implementing
 reviewer. That reviewer reads all original notes, all user-visible messages and

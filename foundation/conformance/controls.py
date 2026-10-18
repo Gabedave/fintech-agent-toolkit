@@ -211,13 +211,17 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None)
     journal = root / 'journal.jsonl'
     journal.write_text(''.join(json.dumps(event, ensure_ascii=False) + '\n' for event in observation['events']))
     stdout = root / 'stdout.jsonl'
-    stream = [{'type': 'item.completed', 'item': {'type': 'mcp_tool_call', 'server': 'workbench',
-               'tool': event['tool'], 'arguments': event['arguments'],
-               'result': {'content': [{'type': 'text', 'text': json.dumps(event['result'])}]}}}
-              for event in observation['events']]
+    stream = []
+    for event in observation['events']:
+        item = {'id': 'control-' + str(event['seq']), 'type': 'mcp_tool_call', 'server': 'workbench',
+                'tool': event['tool'], 'arguments': event['arguments']}
+        stream.append({'type': 'item.started', 'item': copy.deepcopy(item)})
+        item['result'] = {'content': [{'type': 'text', 'text': json.dumps(event['result'])}]}
+        stream.append({'type': 'item.completed', 'item': item})
     stream.extend({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': text}}
                   for text in observation.get('intermediate_messages', []))
     stream.append({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': observation.get('final_text', '')}})
+    stream.append({'type': 'turn.completed'})
     stdout.write_text(''.join(json.dumps(event, ensure_ascii=False) + '\n' for event in stream))
     save('prompt.json', variant['facts'])
     save('initial.json', observation.get('initial', {}))
