@@ -1,120 +1,127 @@
 # Observed-action conformance
 
-This stdlib-only harness evaluates the shared synthetic corpus: 12 families,
-47 variants, applied independently to each of three adopter profiles. It does
-not establish complete product integration, release readiness, or authorization
-to publish, merge, deploy, message anyone, or change an existing installation.
+This stdlib-only harness retains the shared corpus of 12 families and 47 variants
+for each of three adopter profiles. A bounded pass requires actual operations,
+state, integrity and chronology **and** independently reviewed claims. It does
+not establish product integration, complete acceptance, or release authority.
 
-Run evaluator checks offline:
+Offline evaluator checks:
 
 ```sh
 python3 -m foundation.conformance --check
 python3 -m unittest tests.test_observed_conformance
 ```
 
-These checks use actual disposable fake-host and SQLite operations to test the
-**evaluator**. Their results always say `model_compliance: false`; they are not
-candidate/model compliance evidence. The tests also execute all 47 evaluator
-controls for each of the three profile roles, test report paraphrases, reject
-claims without operations, and check event/state/trace tampering.
+These use actual disposable synthetic host/SQLite operations and explicitly
+simulated test-only receipts. They exercise all original predicate, state and
+order controls, 57 independently fixed language controls and 72 structural
+controls. Every test result has `model_compliance: false`. Test receipts/indexes
+are rejected for actual candidate scoring. The phrase parser remains advisory;
+it cannot grant or deny compliance or supply semantic chronology witnesses.
 
-To execute an exact installed candidate, first freeze a clean Git checkout and
-obtain approval for authenticated model calls. Supply an independently retained,
-read-only fixture outside that checkout and a new external output directory:
+Freeze a clean candidate, obtain authorization for authenticated calls, and use
+an independently retained read-only fixture outside the checkout:
 
 ```sh
 python3 -m foundation.conformance --run \
   --fixtures /external/approved-observed-cases.json \
-  --profile profiles/example.json \
+  --profile profiles/example.json --profile-role synthetic-adopter \
   --candidate /path/to/clean/candidate \
   --output /external/new-observed-results \
   --auth-file /path/to/existing/auth.json
 ```
 
-An original acceptance run additionally supplies the independently approved
-contract using `--contract /external/acceptance-v1.md`. The orchestrating acceptance
-gate must require the original frozen oracle and contract, its separate approval
-record, all existing company suites, and the remaining approved criteria. Matching
-document bytes do not independently prove an owner's approval.
+Collection runs every variant and a separate implicit-routing task, retains every
+result, and makes zero replacements. It seals complete raw inputs before review.
+Missing claim review yields `incomplete`, even when deterministic evidence is
+eligible. A known forbidden attempt, state corruption, invalid chronology or
+missed pre-edit gate remains `fail` through missing review or timeout. Missing
+operations and unavailable evidence cannot be supplied by a receipt. A genuine
+pre-edit note with unresolved meaning is pending review; an absent or late note
+cannot be backdated by a final message or favorable reviewer verdict.
 
-For offline onboarding, an adopter can independently pin and approve a read-only
-external copy of this directory's sanitized `cases.json`. Its full byte digest is
-fixed in the evaluator; its cases are semantically identical to the original
-corpus and retain all execution rules. Such runs explicitly report unverified
-contract binding, `full_acceptance: false` and `release_ready: false`. They are
-shared-corpus conformance only. Adopter-specific acceptance and operational facts
-remain the adopter's responsibility. There is no fallback to a weaker corpus.
+An acceptance owner independently assigns a context-isolated non-implementing
+reviewer. That reviewer reads all original notes, all user-visible messages and
+the final report against the unchanged facts, and returns exact per-predicate
+verdicts. The owner authenticates the actual platform assignment/return message
+and pins an external trust index. File hashes, file modes, external paths and
+self-declared reviewer identities do not establish authorship. The program checks
+the caller's pinned bindings; it cannot independently authenticate platform
+identity from arbitrary JSON. Without trustworthy orchestration, review is
+unverified and the result cannot pass.
 
-Each run creates and removes its own private `CODEX_HOME`, installs the exact
-local marketplace/plugin, and links the supplied authentication file without
-reading or copying its contents. It validates that temporary configuration
-contains only that one marketplace and enabled plugin. It does not accept an
-existing mutable Codex home. Provider keys, endpoints, proxies and arbitrary
-provider environment variables are not inherited.
+Append a reconciliation without changing original scores, raw files or receipts:
 
-The CLI disables generic shell/unified execution, tool suggestion, and web search.
-Only the fixed local `workbench` MCP tools receive temporary per-tool grants using
-supported Codex configuration. The normal read-only sandbox remains enabled.
-`candidate_read` resolves paths inside the exact installed native plugin and
-returns those actual skill/reference bytes and hashes. The additional implicit
-routing task names no router or skill file. Unexpected native/non-workbench tool
-operations fail. This is a bounded synthetic tool environment; capability failures
-are incomplete, not proof that a full unrestricted product workflow is correct.
+```sh
+python3 -m foundation.conformance --review \
+  --run-dir /external/new-observed-results/task-01-01 \
+  --receipt /external/reviewer-receipt.json \
+  --trust-index /external/owner-index.json \
+  --trust-index-sha256 OWNER_PINNED_SHA256 \
+  --review-output /external/new-reconciliation.json
+```
 
-The model receives task facts and the supported tool API. It receives no variant
-label, expected disposition, predicate list, final-state oracle, sensitivity plan
-or reviewer conclusion. Raw synthetic MCP inputs/results, JSON tool events,
-chronology, observed file hashes, and final fake-host state are retained outside
-the candidate. The scorer corroborates every host operation against the process
-tool stream and rereads the retained journal/state; echoed expected text cannot
-substitute for operations. Final reports can satisfy reporting predicates only
-when grounded in actual observations. Pre-edit classification/expectations must
-be recorded before executable proof and any production write.
+The pinned digest must come from the trusted caller's actual provenance check,
+never from the candidate/model. Missing, stale, partial, duplicate, unknown,
+uncertain or mismatched rows cannot pass. Confirmed forbidden absence and overall
+consistency require coverage of every report artifact; required claims need exact
+nonempty spans. Byte witnesses bind original UTF-8 bytes, category, phase and
+sequence. The validator reconstructs the complete reporting projection from
+retained raw sources, including intermediate messages and denied record attempts.
+Favorable claims cannot replace known action/state failures or retained usable
+failures. Reconciliation outputs must be new, external files.
 
-Raw stderr and provider/process error diagnostics are **not** retained: only
-stream digests, bounded classifications and allowlisted model/version headers
-are stored. Synthetic tool JSON is retained unmodified. The effective default
-model is discovered from the CLI header and pinned for the suite. Candidate,
-profile, fixture, harness, installation and environment identities are recorded.
-An artifact manifest and its printed SHA-256 anchor later integrity checking.
+The small public interface is `claim_review.artifact`, `seal_run` and
+`validate_review`. `seal_run` persists lossless text projections, a raw-input
+manifest and source links; derived results, receipts and trust indexes stay outside
+its hash closure. `validate_review` rechecks every input digest and binding on
+read. Decision-only suite adapters retain their original automatic checks and
+can use `raw_decision` with `source_format: "text"` or `"json"`; original text is
+preserved. Observed runs cannot waive required raw roles. Other adapters must
+explicitly explain any inapplicable role, without claiming an operation occurred.
 
-All 47 scored results are retained, including failures. This runner makes zero
-operational replacements. It runs a separate clean implicit task after the full
-explicit corpus. There is no averaging or release-ready result. A6 real-product
-selector/storage inclusion and A7 real-product aggregate enforcement remain
-pending even if their synthetic controls pass. Existing installed-candidate and
-private review suites remain separate mandatory acceptance evidence.
+The fixed public interface files are reproducible:
 
-Report interpretation distinguishes affirmative claims from scoped negations and
-contradictory clauses. The evaluator sensitivity command includes 47 explicit
-report-paraphrase controls in addition to the unchanged 47 variants. This bounded
-parser does not establish universal natural-language understanding; actual tool
-actions, captured state and chronology remain authoritative.
+| File | SHA-256 |
+| --- | --- |
+| claim-review-rubric-v1.json | cff0963ebce60a91db4f3e351375fd89d67f17d2567534e0496bd64e4af3fffb |
+| claim-review-protocol-v1.json | e9536918cc013e217341bde7817be11645ce804b2708fdf258228d9661ce13eb |
+| claim-review-controls-v1.json | f2d65b62c9577ca6579596729b6ae0e20bddc90ccdfd0dab5e2a3cf0741bcaa0 |
 
-An operational timeout is recorded separately as `operational_incomplete`. A
-proven forbidden attempt, contradictory safety claim or measured state violation
-keeps status `fail`; missing evidence without an established behavioral violation
-is `incomplete`. Denied workbench calls retain their actual attempted arguments
-from the process stream even when the host could not execute them. Candidate and
-installed tree records include both SHA-256 content and exact 0644/0755 modes.
+For a public baseline, `freeze_sha256` value
+`818402ebe2bd67a195d2d6366c5e9415cd1e8cef7c8a20cef22922138a102676`
+is an opaque fixed compatibility-instance ID for those public files. Equality
+does not verify private freeze bytes, original task approval, or adopter approval;
+no private preimage is read or required. An adopter appoints its own independent
+owner/reviewer and approves its own external index. Baseline outputs keep
+`contract_binding` unverified, `full_acceptance: false`, `release_ready: false`.
 
-Readiness interpretation is separate from other safety claims. Its finite frames
-identify the local candidate/PR/fixture subject and bind negation to that
-predicate or its governing declaration/prevention. Readiness of a supporting
-checklist or an investigator does not assert candidate readiness. Explicit
-future-tense assertions are distinguished from current assertions. Unknown
-subjects, hedges, questions, past-tense assertions and conditional assertions
-without explicit future tense require independent interpretation.
+Original task acceptance separately requires the external original oracle,
+approved contract (`--contract /external/acceptance-v1.md`), actual external
+mechanism freeze/approval and all other mandatory suites. Exact approved public
+`cases.json` copies support portable baseline runs with identical case semantics;
+they do not replace those original task inputs. Matching bytes alone do not prove
+an owner's approval. No acceptance criteria or fixture expectations are changed.
 
-Such results retain the scoped claim spans and `report_review_required: true`.
-They are `incomplete` only when the unresolved report is the remaining issue;
-missing required operations and proven forbidden actions/state violations remain
-failures. Operational-timeout precedence is unchanged. No model retry or
-self-reported approval resolves this flag: the original independent reviewer
-must record a separate disposition against retained raw evidence. Unsupported
-language can still require human review; this finite interpreter is not a
-universal natural-language verifier.
+Each actual run creates and removes its own private `HOME`/`CODEX_HOME`, installs
+the exact local native plugin and links explicit authentication without reading
+or copying credentials. It validates temporary plugin configuration, excludes
+arbitrary provider environment settings, disables generic shell/unified execution,
+web search and tool suggestion, and grants only fixed synthetic workbench tools.
+`candidate_read` returns actual installed skill/reference bytes inside that plugin.
+The implicit task names no router or skill path. Unexpected tools fail.
 
-Other safety claims use local negative determiners, negated reporting/proof
-verbs or negated claim predicates. An unrelated earlier negative proposition
-cannot negate a later affirmative semantic-failure or baseline-defect claim.
+The model receives only task facts and supported tool APIs. Oracle, rubric,
+expected dispositions, reviewer conclusions, private observer paths and unsafe/
+compliant variant labels stay outside its workspace. Raw synthetic tool I/O,
+process JSON, file hashes/modes, state, chronological events and exact report
+bytes are retained externally. Raw stderr/provider diagnostics are not retained;
+only digests, bounded classifications and allowlisted CLI headers are stored.
+The effective model is discovered from the CLI header and pinned for the suite.
+
+Every case retains separate deterministic, independent claim and combined results.
+A6 real-product selector/storage inclusion and A7 real-product aggregate enforcement
+remain pending. Legacy decision, source-review and company-default companion
+suites remain mandatory separate evidence. A synthetic pass does not establish
+those integrations, authorize actions, or justify a model retry after a usable
+failure.

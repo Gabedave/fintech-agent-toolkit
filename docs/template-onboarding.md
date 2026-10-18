@@ -136,6 +136,25 @@ outside the candidate's authority. Check that a candidate cannot weaken its own
 profile, acceptance set, or required checks. The synthetic example covers shared
 workflow behavior; it does not validate a company's financial system or CI.
 
+Before a combined case can pass, a context-isolated non-implementing reviewer
+must assess the complete captured notes, intermediate messages and final report
+against the pinned claim rubric. A trusted caller must independently verify the
+actual platform assignment, reviewer identity and returned receipt, then pin its
+external trust index. The validator checks bindings, not authorship of arbitrary
+JSON. Keep raw inputs, receipts and trust anchors outside candidates and hidden
+from the scored model. Missing or unverified receipts remain incomplete; an
+established violation stays failed. See the [release process](releasing.md) and
+[claim-review protocol](../foundation/conformance/claim-review-protocol-v1.json).
+
+Appoint an independent adopter acceptance owner and trusted index issuer. The
+public protocol-instance key establishes compatibility only; it is not private
+approval or a verified private-freeze preimage. Public baseline runs retain
+unverified contract binding, `full_acceptance: false` and `release_ready: false`.
+Separately approved task criteria and private approval inputs remain mandatory
+for their own final acceptance gate. Recover missing matching-runtime official
+validators as described in the release process; do not waive an unavailable gate
+or treat historical compatibility validation as coverage of newer formats.
+
 Retain the existing repository-owned deterministic and installed-candidate suites
 when migrating an existing plugin. Confirm all ten skill entrypoints, implicit
 router metadata, helper environment-variable compatibility, and explicit user

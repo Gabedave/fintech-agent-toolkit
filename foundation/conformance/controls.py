@@ -186,3 +186,124 @@ REPORT_SENSITIVITY_CASES += [
     (3, 0, 'This candidate is ready for review?', 'incomplete'),
     (3, 0, 'The PR was ready for review yesterday', 'incomplete'),
 ]
+
+
+
+def sensitivity_review(case, variant, observation, directory, dispositions=None):
+    """Manufacture explicitly TEST-ONLY receipts to exercise the verifier.
+
+    These do not establish semantic review or candidate/model compliance. The
+    caller supplies fixed dispositions for language controls. Legacy phrase lint
+    may populate fixture defaults only in this explicitly simulated test path.
+    """
+    import hashlib
+    import json
+    from pathlib import Path
+    from .claim_review import (FREEZE_SHA256, RUBRIC_SHA256, artifact, assigned_rows,
+                               protocol, seal_run, sha256)
+    from .evaluator import normalized, forbidden, state_checks
+    root = Path(directory)
+    root.mkdir()
+    def save(name, value):
+        path = root / name
+        path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True))
+        return path
+    journal = root / 'journal.jsonl'
+    journal.write_text(''.join(json.dumps(event, ensure_ascii=False) + '\n' for event in observation['events']))
+    stdout = root / 'stdout.jsonl'
+    stream = [{'type': 'item.completed', 'item': {'type': 'mcp_tool_call', 'server': 'workbench',
+               'tool': event['tool'], 'arguments': event['arguments'],
+               'result': {'content': [{'type': 'text', 'text': json.dumps(event['result'])}]}}}
+              for event in observation['events']]
+    stream.extend({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': text}}
+                  for text in observation.get('intermediate_messages', []))
+    stream.append({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': observation.get('final_text', '')}})
+    stdout.write_text(''.join(json.dumps(event, ensure_ascii=False) + '\n' for event in stream))
+    save('prompt.json', variant['facts'])
+    save('initial.json', observation.get('initial', {}))
+    save('final.json', observation.get('final', {}))
+    save('initial-files.json', observation.get('initial_files', {}))
+    save('final-files.json', observation.get('final_files', {}))
+    save('chronology.json', [{'seq': e['seq'], 'tool': e['tool']} for e in observation['events']])
+    save('observation.json', observation)
+    binding = {name: 'sensitivity-only-' + name for name in protocol()['binding_required_fields']}
+    artifacts = [artifact(root, name, role, path) for name, role, path in (
+        ('stream', 'raw_process_stream', 'stdout.jsonl'), ('journal', 'raw_tool_journal', 'journal.jsonl'),
+        ('prompt', 'prompt', 'prompt.json'), ('initial', 'initial_state', 'initial.json'),
+        ('final', 'final_state', 'final.json'), ('initial-files', 'initial_file_snapshot', 'initial-files.json'),
+        ('final-files', 'final_file_snapshot', 'final-files.json'), ('chronology', 'chronology', 'chronology.json'),
+        ('observation', 'observation', 'observation.json'))]
+    manifest_path = seal_run(root, binding, 'sensitivity-run', 'observed', case['id'], variant['id'],
+                             'synthetic-adopter', artifacts,
+                             chronology=[{'seq': event['seq'], 'tool': event['tool']} for event in observation['events']])
+    manifest = json.loads(manifest_path.read_text())
+    by_id = {item['artifact_id']: item for item in manifest['artifacts']}
+    surface = manifest['report_surface']
+    names = normalized(case, variant, observation, advisory=True)
+    bad = forbidden(variant, observation, names, advisory=True)
+    states = state_checks(variant, observation)
+    dispositions = dict(dispositions or {})
+    from .readiness import interpret_readiness
+    if any(item['kind'] == 'ambiguous' for item in interpret_readiness(observation.get('final_text', ''))):
+        dispositions.setdefault('overall_report_consistency', 'uncertain')
+    rows = []
+    for key in assigned_rows(case['id'], variant['id']):
+        field, _, name = key.partition('::')
+        disposition = 'confirmed'
+        chosen = surface
+        if field == 'required_observed_events':
+            seqs = {seq for actual, seq in names if actual == name}
+            chosen = [item for item in surface if item['event_seq'] in seqs or item['phase'] == 'final-message' and len(observation['events']) + 1 in seqs]
+            if not chosen:
+                disposition = 'violated'
+                chosen = surface[-1:]
+        elif field == 'forbidden_observed_events' and name in bad:
+            disposition = 'violated'
+        elif field == 'final_state_assertions' and not states.get(name):
+            disposition = 'violated'
+        disposition = dispositions.get(key, disposition)
+        witnesses = []
+        for item in chosen:
+            entry = by_id[item['artifact_id']]
+            witnesses.append({'artifact_id': item['artifact_id'], 'artifact_path': entry['path'],
+                              'artifact_sha256': entry['sha256'], 'start_byte': 0, 'end_byte': entry['size_bytes'],
+                              'phase': item['phase'], 'event_seq': item['event_seq'], 'category': item['category']})
+        rows.append({'predicate_key': key, 'disposition': disposition,
+                     'rationale': 'Explicitly simulated evaluator control; not independent model review.',
+                     'witnesses': witnesses})
+    manifest_digest = sha256(manifest_path.read_bytes())
+    receipt = {'kind': 'claim-review-receipt', 'protocol_version': 1, 'purpose': 'sensitivity-only',
+               'review_id': 'test-review', 'batch_id': 'test-batch', 'reviewer_principal': 'test-reviewer',
+               'freeze_sha256': FREEZE_SHA256, 'rubric_sha256': RUBRIC_SHA256,
+               'runs': [{'run_id': manifest['run_id'], 'suite': 'observed', 'case_id': case['id'],
+                         'variant_id': variant['id'], 'profile_role': 'synthetic-adopter',
+                         'binding': binding, 'input_manifest_sha256': manifest_digest, 'predicate_results': rows}]}
+    receipt_path = save('test-receipt.json', receipt)
+    receipt_digest = sha256(receipt_path.read_bytes())
+    index = {'kind': 'claim-review-trust-index', 'protocol_version': 1, 'purpose': 'sensitivity-only',
+             'batch_id': 'test-batch', 'freeze_sha256': FREEZE_SHA256, 'issuer_principal': 'test-only-orchestrator',
+             'authorized_reviewers': ['test-reviewer'], 'attestations': [{
+                 'review_id': 'test-review', 'reviewer_principal': 'test-reviewer', 'receipt_sha256': receipt_digest,
+                 'batch_id': 'test-batch', 'run_manifest_sha256s': [manifest_digest],
+                 'platform_assignment': {'principal': 'test-reviewer', 'role': 'review-only',
+                                         'context_isolated': True, 'isolation_evidence': 'SIMULATED test only',
+                                         'run_manifest_sha256s': [manifest_digest]},
+                 'platform_received_message': {'sender_principal': 'test-reviewer', 'body_sha256': '0' * 64,
+                                               'receipt_sha256': receipt_digest, 'batch_id': 'test-batch',
+                                               'run_manifest_sha256s': [manifest_digest], 'identifiers': 'unavailable; simulated'},
+                 'independence': {'non_implementing': True, 'not_candidate_authored': True, 'no_expected_answers': True}}]}
+    index_path = save('test-index.json', index)
+    return {'manifest_path': manifest_path, 'receipt_path': receipt_path, 'index_path': index_path,
+            'index_sha256': sha256(index_path.read_bytes())}
+
+
+def sensitivity_score(case, variant, observation, dispositions=None):
+    """Test harness entrypoint; synthetic receipts can never pass actual runs."""
+    import tempfile
+    from pathlib import Path
+    from .evaluator import score
+    if observation.get('process', {}).get('kind') != 'sensitivity-only' or not observation.get('events'):
+        return score(case, variant, observation)
+    with tempfile.TemporaryDirectory(prefix='claim-sensitivity-') as temp:
+        context = sensitivity_review(case, variant, observation, Path(temp) / 'sealed', dispositions)
+        return score(case, variant, observation, context)

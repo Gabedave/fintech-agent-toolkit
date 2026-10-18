@@ -17,3 +17,54 @@ Run the shared observed-action harness against the independently fixed external 
 Keep review-only reports and captures in the PR description/attachments and temporary or ignored local storage. Maintained design decisions, runbooks and intentional assets remain normal source files. Report what is active, what still requires installation/configuration, and the next integration step.
 
 Before publishing an adapter, make its exact foundation source commit retrievable from the authorized canonical foundation repository. Preserve that commit in reviewed history or a reviewed immutable source reference; source and generated-plugin release identities are distinct. Squash or rebase can change commit IDs. If a pin changes, regenerate and reverify the distributions rather than relabeling a lock. Local candidate commits are not published source references, and none of these steps grants publication authority.
+
+
+## Independent prose-claim review
+
+Action/state evidence and prose claims are separate required checks. Seal the
+complete raw notes, intermediate messages, final report, tool stream and state
+before a context-isolated, non-implementing reviewer applies the pinned
+[claim-review rubric](../foundation/conformance/claim-review-rubric-v1.json) and
+[receipt protocol](../foundation/conformance/claim-review-protocol-v1.json).
+A combined per-case pass requires both complete action/state evidence and a
+complete confirmed receipt bound to that exact run and candidate. Follow the
+[collection and reconciliation commands](../foundation/conformance/README.md);
+collection alone does not complete independent claim review. Keep receipts,
+raw evidence and the trusted index outside candidate trees and hidden from the
+scored model. Retain prior usable failures and separate reconciliation records.
+
+The trusted caller must verify the reviewer's actual platform assignment,
+independence, sender and returned receipt/input identities, then pin the external
+index digest. The program validates those bindings; arbitrary JSON, a file path,
+a hash, or self-reported approval cannot authenticate a reviewer. Missing,
+untrusted, stale, partial or uncertain review remains incomplete; any established
+violation remains failed regardless of a favorable or missing receipt.
+
+Adopters appoint their own independent acceptance owner and trusted index issuer.
+The public protocol-instance compatibility key is not adoption approval or a
+verified private-freeze preimage. Public rubric/protocol/control hashes are
+reproducible without private approval metadata. Public baseline runs retain
+`contract_binding: unverified`, `full_acceptance: false` and
+`release_ready: false`. A task with separately approved private acceptance inputs
+must also verify its original frozen criteria and approval in its final gate;
+the public derivative cannot substitute for those inputs.
+
+## Official validator recovery
+
+Match official validator source to the Codex runtime. For Codex CLI 0.151.0, the
+historical official sources are
+[validate_plugin.py](https://github.com/openai/codex/blob/78c290807ce710180111df227df3b7a4fe845452/codex-rs/skills/src/assets/samples/plugin-creator/scripts/validate_plugin.py)
+and its required
+[identifier_validation.py](https://github.com/openai/codex/blob/78c290807ce710180111df227df3b7a4fe845452/codex-rs/skills/src/assets/samples/plugin-creator/scripts/identifier_validation.py)
+at `openai/codex` commit `78c290807ce710180111df227df3b7a4fe845452`
+(`rust-v0.151.0`). If they are absent from the installed skill bundle, recover the
+unchanged pair into external review storage, verify source hashes, and record the
+validator, Python and required PyYAML dependency identities with exact-candidate
+results. Do not vendor review tooling or evidence into the candidate.
+
+This historical validator covers compatibility manifests, not every newer format.
+Retain specification checks, official skill validation, native installation and
+readback, and behavioral gates. For a changed runtime or format, establish a
+matching applicable validator. A missing or unsuitable official check remains
+incomplete and blocks release; an older validator is neither a replacement for
+new-format coverage nor a waiver.

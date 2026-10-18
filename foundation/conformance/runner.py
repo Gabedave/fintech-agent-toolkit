@@ -17,7 +17,7 @@ import tempfile
 import time
 import tomllib
 
-from .evaluator import CONTRACT_SHA256, FIXTURE_SHA256, PUBLIC_FIXTURE_SHA256, load_cases, score, sensitivity
+from .evaluator import CASES_SHA256, CONTRACT_SHA256, FIXTURE_SHA256, PUBLIC_FIXTURE_SHA256, load_cases, score, sensitivity
 from .host import initialize, files, digest, TOOLS
 
 
@@ -373,6 +373,28 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
              'state':str(state_path)
          }}
     obs['denied_attempts'] = denied_attempts
+    obs['implicit_routing'] = implicit
+    metadata={'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
+              'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
+              'foundation_lock':json.loads((Path(args.candidate)/'foundation-lock.json').read_text()) if (Path(args.candidate)/'foundation-lock.json').exists() else None,'candidate_tree_digest':candidate_digest,
+              'installed_tree_digest':installed_digest,'fixture_sha256':digest(args.fixtures) if args.fixtures else PUBLIC_FIXTURE_SHA256,'contract_sha256':CONTRACT_SHA256,
+              'harness_digest':tree_hash(Path(__file__).parent)[0], 'python':sys.version,'platform':sys.platform,
+              'model_requested':args.model,'effective_model':getattr(
+                  args,
+                  'effective_model',
+                  None
+              ),'model_probe':getattr(args,'model_probe',None),'feature_probe':getattr(args,'feature_probe',None),'model_observed':[e for e in raw['events'] if 'model' in json.dumps(e).lower() and e.get('type') in ('thread.started','turn.started','turn.completed')],
+              'invocation':'implicit' if implicit else 'explicit','command':command}
+    if not metadata['model_observed']:
+        metadata['model_observed'] = getattr(args, 'effective_model', None) or 'not reported; effective model unverified'
+    metadata['harness_revision'] = subprocess.check_output(['git', '-C', str(Path(__file__).resolve().parents[2]), 'rev-parse', 'HEAD'], text=True).strip()
+    metadata['environment_sha256'] = hashlib.sha256(json.dumps(safe_env(home), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    metadata['profile_role'] = args.profile_role
+    metadata['candidate_file_hashes'] = candidate_files
+    metadata['installed_file_hashes'] = installed_files
+    (output / 'observation.json').write_text(json.dumps(obs, indent=2, sort_keys=True))
+    (output / 'metadata.json').write_text(json.dumps(metadata, indent=2, sort_keys=True))
+    manifest_path = seal_observed_run(output, case, variant, obs, metadata, args.profile_role)
     result = score(case, variant, obs)
     if candidate_files != installed_files:
         result['status'] = 'fail'
@@ -388,40 +410,97 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
             if item.get('server') != 'workbench' or item.get('tool') not in {tool[0] for tool in TOOLS}:
                 result['status'] = 'fail'
                 result['model_compliance'] = False
+                result['known_behavioral_failure'] = True
                 result['errors'].append('unexpected non-workbench tool attempt')
         elif kind and kind not in {'agent_message', 'reasoning'}:
             result['status'] = 'fail'
             result['model_compliance'] = False
+            result['known_behavioral_failure'] = True
             result['errors'].append('unexpected native tool operation: ' + kind)
     if implicit and (not final.get('identity', {}).get('loaded')):
         result['status'] = 'fail'
         result['model_compliance'] = False
+        result['known_behavioral_failure'] = True
         result['errors'].append('implicit task did not read selected installed router')
-    metadata={'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
-              'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
-              'foundation_lock':json.loads((Path(args.candidate)/'foundation-lock.json').read_text()) if (Path(args.candidate)/'foundation-lock.json').exists() else None,'candidate_tree_digest':candidate_digest,
-              'installed_tree_digest':installed_digest,'fixture_sha256':digest(args.fixtures) if args.fixtures else PUBLIC_FIXTURE_SHA256,'contract_sha256':CONTRACT_SHA256,
-              'harness_digest':tree_hash(Path(__file__).parent)[0], 'python':sys.version,'platform':sys.platform,
-              'model_requested':args.model,'effective_model':getattr(
-                  args,
-                  'effective_model',
-                  None
-              ),'model_probe':getattr(args,'model_probe',None),'feature_probe':getattr(args,'feature_probe',None),'model_observed':[e for e in raw['events'] if 'model' in json.dumps(e).lower() and e.get('type') in ('thread.started','turn.started','turn.completed')],
-              'invocation':'implicit' if implicit else 'explicit','command':command}
-    if not metadata['model_observed']:
-        metadata['model_observed'] = getattr(args, 'effective_model', None) or 'not reported; effective model unverified'
-    metadata['candidate_file_hashes'] = candidate_files
-    metadata['installed_file_hashes'] = installed_files
-    (output / 'observation.json').write_text(json.dumps(obs, indent=2, sort_keys=True))
+    (output / 'action-state-result.json').write_text(json.dumps(result['action_state_result'], indent=2))
     (output / 'result.json').write_text(json.dumps(result, indent=2))
-    (output / 'metadata.json').write_text(json.dumps(metadata, indent=2))
+    result['raw_input_manifest'] = str(manifest_path)
     return result
+
+
+def seal_observed_run(output, case, variant, observation, metadata, profile_role):
+    """Seal inputs before review; results and receipts are outside hash closure."""
+    from .claim_review import artifact, seal_run, observed_binding
+    output = Path(output)
+    def save(relative, value):
+        (output / relative).write_text(json.dumps(value, indent=2, sort_keys=True))
+    save('observer/initial-state.json', observation['initial'])
+    save('observer/initial-files.json', observation['initial_files'])
+    save('observer/final-files.json', observation['final_files'])
+    chronology = {'events': [{'seq': event['seq'], 'tool': event['tool'], 'monotonic_ns': event.get('monotonic_ns')}
+                             for event in observation['events']],
+                  'installed_at_ns': observation['identity'].get('installed_at_ns'),
+                  'started_at_ns': observation['process'].get('started_at_ns')}
+    save('observer/chronology.json', chronology)
+    binding = observed_binding(metadata, digest(output / 'observer/prompt.txt'))
+    records = [artifact(output, name, role, path) for name, role, path in (
+        ('prompt', 'prompt', 'observer/prompt.txt'), ('stream', 'raw_process_stream', 'observer/stdout.jsonl'),
+        ('journal', 'raw_tool_journal', 'observer/journal.jsonl'), ('initial', 'initial_state', 'observer/initial-state.json'),
+        ('final', 'final_state', 'observer/state.json'), ('initial-files', 'initial_file_snapshot', 'observer/initial-files.json'),
+        ('final-files', 'final_file_snapshot', 'observer/final-files.json'), ('chronology', 'chronology', 'observer/chronology.json'),
+        ('observation', 'observation', 'observation.json'), ('metadata', 'metadata', 'metadata.json'))]
+    return seal_run(output, binding, profile_role + ':' + metadata['candidate_revision'] + ':' + output.name, 'observed', case['id'], variant['id'], profile_role,
+                    records, chronology=chronology)
+
+
+def reconcile(args, data):
+    """Append a receipt-bound result; never modify original scores or raw inputs."""
+    from .claim_review import validate_manifest
+    if not all((args.run_dir, args.receipt, args.trust_index, args.trust_index_sha256, args.review_output)):
+        raise ValueError('--review requires run-dir, receipt, trust-index, trust-index-sha256 and new review-output')
+    if args.review_output.exists():
+        raise ValueError('review output exists; retain original reconciliation')
+    manifest_path = args.run_dir / 'raw-input-manifest.json'
+    manifest = validate_manifest(manifest_path)
+    pair = next(((case, variant) for case in data['cases'] for variant in case['variants']
+                 if (case['id'], variant['id']) == (manifest['case_id'], manifest['variant_id'])), None)
+    if pair is None or manifest['suite'] != 'observed':
+        raise ValueError('review run is not in frozen observed corpus')
+    metadata = json.loads((args.run_dir / 'metadata.json').read_text())
+    observation = json.loads((args.run_dir / 'observation.json').read_text())
+    candidate = Path(metadata['candidate']).resolve()
+    target = args.review_output.resolve()
+    if target == candidate or candidate in target.parents:
+        raise ValueError('review output must be outside candidate')
+    context = {'manifest_path': manifest_path, 'receipt_path': args.receipt,
+               'index_path': args.trust_index, 'index_sha256': args.trust_index_sha256,
+               'candidate_root': metadata['candidate']}
+    result = score(*pair, observation, context)
+    original = args.run_dir / 'result.json'
+    previous = json.loads(original.read_text())
+    if previous.get('status') == 'fail' or previous.get('known_behavioral_failure'):
+        result['status'] = 'fail'
+        result['model_compliance'] = False
+        result['known_behavioral_failure'] = True
+        result['errors'].append('retained original usable behavioral failure cannot be replaced')
+    result['original_result_sha256'] = digest(original)
+    result['raw_input_manifest_sha256'] = digest(manifest_path)
+    args.review_output.write_text(json.dumps(result, indent=2, sort_keys=True))
+    print(json.dumps({'status': result['status'], 'review_output': str(args.review_output)}, sort_keys=True))
+    return int(result['status'] != 'pass')
 
 
 def main():
     parser = argparse.ArgumentParser(description='Frozen observed-action conformance: --check validates evaluator only; --run executes actual installed candidates.')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--run', action='store_true')
+    parser.add_argument('--review', action='store_true')
+    parser.add_argument('--run-dir', type=Path)
+    parser.add_argument('--receipt', type=Path)
+    parser.add_argument('--trust-index', type=Path)
+    parser.add_argument('--trust-index-sha256')
+    parser.add_argument('--review-output', type=Path)
+    parser.add_argument('--profile-role', choices=('public-adopter', 'private-adopter', 'synthetic-adopter'))
     parser.add_argument('--fixtures', type=Path)
     parser.add_argument('--contract', type=Path)
     parser.add_argument('--profile', type=Path)
@@ -432,6 +511,8 @@ def main():
     parser.add_argument('--timeout-seconds', type=int, default=120)
     args = parser.parse_args()
     data = load_cases(args.fixtures, args.contract)
+    if args.review:
+        return reconcile(args, data)
     if args.check or not args.run:
         result = sensitivity(data)
         print(json.dumps(result, indent=2))
@@ -440,8 +521,8 @@ def main():
         parser.error('--run requires an independent external immutable --fixtures copy')
     if args.fixtures.stat().st_mode & 146:
         parser.error('external --fixtures must be immutable/read-only')
-    if not all((args.profile, args.candidate, args.output)):
-        parser.error('--run requires --profile, --candidate and --output')
+    if not all((args.profile, args.candidate, args.output, args.profile_role)):
+        parser.error('--run requires --profile, --profile-role, --candidate and --output')
     if not 10 <= args.timeout_seconds <= 600:
         parser.error('timeout must be 10..600 seconds')
     candidate = args.candidate.resolve()
