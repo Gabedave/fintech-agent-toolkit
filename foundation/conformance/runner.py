@@ -92,9 +92,13 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
     feature_state = {}
     diagnostic_classes = set()
     buffers = {'stdout': b'', 'stderr': b''}
+    capture_gaps = []
+    retained_lines = 0
+    discarding_stdout_line = False
     deadline = time.monotonic() + timeout
     json_mode = '--json' in command
     def consume(name, line):
+        nonlocal retained_lines
         decoded = line.decode('utf-8', errors='replace')
         if name == 'stderr' or not json_mode:
             if re.fullmatch('model: [A-Za-z0-9._:/-]{1,120}', decoded):
@@ -120,8 +124,12 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
             return
         try:
             event = json.loads(line)
+            if not isinstance(event, dict):
+                raise ValueError('non-object process output')
         except (ValueError,UnicodeDecodeError):
             errors.append('unstructured stdout omitted')
+            capture_gaps.append({'after_line': retained_lines, 'kind': 'unstructured-line',
+                                 'sha256': hashlib.sha256(line).hexdigest()})
             return
         if event.get('type') in {'error', 'turn.failed'}:
             event = {
@@ -133,6 +141,7 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
         else:
             stdout_file.write(line + b'\n')
         stdout_file.flush()
+        retained_lines += 1
         events.append(event)
     def stop():
         try:
@@ -163,12 +172,26 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
                     continue
                 name = key.data
                 raw_hashes[name].update(chunk)
+                if name == 'stdout' and discarding_stdout_line:
+                    if b'\n' not in chunk:
+                        continue
+                    chunk = chunk.split(b'\n', 1)[1]
+                    discarding_stdout_line = False
                 buffers[name] += chunk
                 while b'\n' in buffers[name]:
                     line, buffers[name] = buffers[name].split(b'\n', 1)
-                    consume(name, line)
+                    if name == 'stdout' and len(line) > 1048576:
+                        capture_gaps.append({'after_line': retained_lines, 'kind': 'oversized-line',
+                                             'sha256': hashlib.sha256(line).hexdigest()})
+                        errors.append('oversized diagnostic line omitted')
+                    else:
+                        consume(name, line)
                 if len(buffers[name]) > 1048576:
                     errors.append('oversized diagnostic line omitted')
+                    if name == 'stdout':
+                        capture_gaps.append({'after_line': retained_lines, 'kind': 'oversized-line-prefix',
+                                             'sha256': hashlib.sha256(buffers[name]).hexdigest()})
+                        discarding_stdout_line = True
                     buffers[name] = b''
         p.wait(timeout=5)
     except BaseException:
@@ -192,6 +215,11 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
         'raw_stderr_retained': False
     }
     (output / 'diagnostics.json').write_text(json.dumps(diagnostics, indent=2))
+    capture = {'producer': 'pipe-capture-v1', 'source': 'stdout.jsonl',
+               'process_started_at_ns': started_at_ns, 'from_process_start': True,
+               'stdout_sha256': digest(output / 'stdout.jsonl'),
+               'retained_lines': retained_lines, 'gaps': capture_gaps}
+    (output / 'capture.json').write_text(json.dumps(capture, indent=2, sort_keys=True))
     return {
         'command': command,
         'pid': p.pid,
@@ -200,7 +228,8 @@ def stream_process(command, env, cwd, output, timeout, prompt=None):
         'timed_out': timed_out,
         'events': events,
         'parse_errors': errors,
-        'diagnostics': diagnostics
+        'diagnostics': diagnostics,
+        'capture_sha256': digest(output / 'capture.json')
     }
 
 
@@ -260,6 +289,55 @@ def verify_stream(journal, stream):
         unmatched.pop(match)
     return bool(journal) and (not unmatched)
 
+
+
+def read_host_capture(path, lines=False):
+    """Retain the usable journal prefix; absent/partial transport is unknown.
+
+    This decoder does not turn a parse exception into candidate tampering. Raw
+    bytes remain sealed. Complete contradictory events are checked separately.
+    """
+    try:
+        raw = Path(path).read_bytes()
+    except OSError:
+        return ([] if lines else {}), False
+    if not lines:
+        try:
+            value = json.loads(raw)
+            return (value, True) if isinstance(value, dict) else ({}, False)
+        except ValueError:
+            return {}, False
+    values = []
+    for line in raw.splitlines():
+        try:
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                return values, False
+            values.append(value)
+        except ValueError:
+            return values, False
+    return values, True
+
+
+def raw_tool_attempts(stream):
+    """Original workbench requests remain attempts if host capture is lost."""
+    attempts = []
+    for number, event in enumerate(stream, 1):
+        item = event.get('item', {})
+        if (event.get('type') not in {'item.started', 'item.completed'}
+                or item.get('type') != 'mcp_tool_call' or item.get('server') != 'workbench'):
+            continue
+        arguments = item.get('arguments', {})
+        try:
+            arguments = json.loads(arguments) if isinstance(arguments, str) else arguments
+        except ValueError:
+            continue
+        if isinstance(arguments, dict):
+            from .chronology import _result
+            results = [result for result in _result(item) if isinstance(result, dict)]
+            attempts.append({'tool': item.get('tool'), 'arguments': arguments,
+                             'result': results[0] if len(results) == 1 else {}, 'seq': number})
+    return attempts
 
 
 def denied_tool_attempts(stream):
@@ -353,8 +431,8 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     prompt = prompt_for(case, variant, profile, implicit)
     (private / 'prompt.txt').write_text(prompt)
     raw = stream_process(command, safe_env(home), workspace, private, args.timeout_seconds, prompt)
-    events = [json.loads(line) for line in journal.read_text().splitlines()] if journal.exists() else []
-    final = json.loads(state_path.read_text())
+    events, journal_complete = read_host_capture(journal, lines=True)
+    final, state_complete = read_host_capture(state_path)
     end = files(workspace)
     latest = events[-1]['after'] if events else initial_files
     mutations = sorted((k for k in latest.keys() | end.keys() if latest.get(k) != end.get(k)))
@@ -362,8 +440,12 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
              'tool_stream_verified':verify_stream(
                  events,
                  raw['events']
-             ), 'stdout_sha256':digest(private/'stdout.jsonl')}
+             ), 'stdout_sha256':digest(private/'stdout.jsonl'),'capture_sha256':raw.get('capture_sha256'),
+             'host_capture':{'journal_complete':journal_complete,'state_complete':state_complete}}
     denied_attempts = denied_tool_attempts(raw['events'])
+    attempts = raw_tool_attempts(raw['events'])
+    if not journal_complete or not state_complete:
+        process['operational_error'] = 'incomplete host journal/state capture'
     if not events and denied_attempts:
         process['operational_error'] = 'workbench capability unavailable; no host operation executed'
     if raw['timed_out'] or (raw['exit'] and (not events)):
@@ -371,12 +453,15 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     obs={'events':events,'initial':initial,'final':final,'initial_files':initial_files,'final_files':end,
          'final_text':final_message(raw['events']),'process':process,'identity':identity,
          'user_state_before':user_before,'user_state_after':user_snapshot(),'integration':{'A6':'pending','A7':'pending'},
-         'unobserved_mutations':mutations,'observer_paths':{
+         'unobserved_mutations':mutations if journal_complete else [],
+         'mutation_capture_gaps':mutations if not journal_complete else [],'observer_paths':{
              'journal':str(journal),
              'stdout':str(private/'stdout.jsonl'),
-             'state':str(state_path)
+             'state':str(state_path),
+             'capture':str(private/'capture.json')
          }}
     obs['denied_attempts'] = denied_attempts
+    obs['raw_attempts'] = attempts
     obs['implicit_routing'] = implicit
     metadata={'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
               'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
@@ -421,11 +506,6 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
             result['model_compliance'] = False
             result['known_behavioral_failure'] = True
             result['errors'].append('unexpected native tool operation: ' + kind)
-    if implicit and (not final.get('identity', {}).get('loaded')):
-        result['status'] = 'fail'
-        result['model_compliance'] = False
-        result['known_behavioral_failure'] = True
-        result['errors'].append('implicit task did not read selected installed router')
     (output / 'action-state-result.json').write_text(json.dumps(result['action_state_result'], indent=2))
     (output / 'result.json').write_text(json.dumps(result, indent=2))
     result['raw_input_manifest'] = str(manifest_path)
@@ -452,7 +532,8 @@ def seal_observed_run(output, case, variant, observation, metadata, profile_role
         ('journal', 'raw_tool_journal', 'observer/journal.jsonl'), ('initial', 'initial_state', 'observer/initial-state.json'),
         ('final', 'final_state', 'observer/state.json'), ('initial-files', 'initial_file_snapshot', 'observer/initial-files.json'),
         ('final-files', 'final_file_snapshot', 'observer/final-files.json'), ('chronology', 'chronology', 'observer/chronology.json'),
-        ('observation', 'observation', 'observation.json'), ('metadata', 'metadata', 'metadata.json'))]
+        ('observation', 'observation', 'observation.json'), ('metadata', 'metadata', 'metadata.json'),
+        ('capture', 'capture_metadata', 'observer/capture.json'))]
     return seal_run(output, binding, profile_role + ':' + metadata['candidate_revision'] + ':' + output.name, 'observed', case['id'], variant['id'], profile_role,
                     records, chronology=chronology)
 

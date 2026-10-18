@@ -897,3 +897,21 @@ class RawChronologyRegressionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TransitionMatrixRegressionTests(unittest.TestCase):
+    def test_independent_ordering_timeout_matrix(self):
+        from foundation.conformance.transition_controls import run_transitions
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_transitions(Path(tmp) / "transitions")
+            self.assertEqual(result["controls"], 133)
+            self.assertEqual(result["failures"], [])
+
+
+class PredicateStateBoundaryRegressionTests(unittest.TestCase):
+    def test_fixed_predicate_state_boundaries(self):
+        from foundation.conformance.state_controls import run_state_boundaries
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_state_boundaries(Path(tmp) / "states")
+            self.assertEqual(result["controls"], 20)
+            self.assertEqual(result["failures"], [])

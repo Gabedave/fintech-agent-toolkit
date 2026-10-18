@@ -109,11 +109,15 @@ def report_projection(root, artifacts):
     instead of JSONL, declared by source_format='text'. There is no host claim.
     """
     rows = []
-    from .chronology import build, message_phase
-    raw_streams = [(source['artifact_id'], [json.loads(line) for line in _path(root, source['path']).read_bytes().splitlines()])
+    from .chronology import build, message_phase, read_stream
+    from .runner import read_host_capture
+    observation_source = next((source for source in artifacts if source['role'] == 'observation'), None)
+    process = json.loads(_path(root, observation_source['path']).read_bytes()).get('process', {}) if observation_source else {}
+    interrupted = bool(process.get('timed_out') or process.get('operational_error'))
+    raw_streams = [(source['artifact_id'], read_stream(_path(root, source['path']), interrupted))
                    for source in artifacts if source['role'] == 'raw_process_stream' and source.get('source_format', 'jsonl') == 'jsonl']
-    journal = [json.loads(line) for source in artifacts if source['role'] == 'raw_tool_journal'
-               for line in _path(root, source['path']).read_bytes().splitlines()]
+    journal = [value for source in artifacts if source['role'] == 'raw_tool_journal'
+               for value in read_host_capture(_path(root, source['path']), lines=True)[0]]
     order = build(raw_streams, journal)
     source_rank = {name: index for index, (name, _) in enumerate(raw_streams)}
     for source in artifacts:
@@ -130,7 +134,12 @@ def report_projection(root, artifacts):
         if source_format == 'json':
             values = [(None, json.loads(raw))]
         elif source_format == 'jsonl':
-            values = [(number, json.loads(line)) for number, line in enumerate(raw.splitlines(), 1)]
+            if role == 'raw_process_stream':
+                values = list(enumerate(read_stream(_path(root, source['path']), interrupted), 1))
+            elif role == 'raw_tool_journal':
+                values = list(enumerate(read_host_capture(_path(root, source['path']), lines=True)[0], 1))
+            else:
+                values = [(number, json.loads(line)) for number, line in enumerate(raw.splitlines(), 1)]
         else:
             raise ValueError('unknown report source format')
         message_rows = []
@@ -156,14 +165,14 @@ def report_projection(root, artifacts):
                        'source_line': line, 'source_field': ['item', 'text']}
                 rows.append(row)
                 message_rows.append(row)
-            elif role == 'raw_process_stream' and value.get('type') == 'item.completed' and item.get('type') == 'mcp_tool_call' and item.get('tool') == 'record' and item.get('error'):
+            elif role == 'raw_process_stream' and value.get('type') == 'item.completed' and item.get('type') == 'mcp_tool_call' and item.get('tool') == 'record' and (item.get('error') or any(report['source']==source['artifact_id'] and report['line']==line and report['category']=='uncorroborated-record' for report in order['reports'])):
                 arguments = item.get('arguments', {})
                 encoded_arguments = isinstance(arguments, str)
                 arguments = json.loads(arguments) if encoded_arguments else arguments
                 if isinstance(arguments.get('text'), str):
                     rows.append({'_position': (source_rank[source['artifact_id']], line), 'text': arguments['text'],
                                  'phase': 'intermediate-message', 'event_seq': None,
-                                 'category': 'denied-record-attempt', 'source_artifact_id': source['artifact_id'],
+                                 'category': 'denied-record-attempt' if item.get('error') else 'uncorroborated-record', 'source_artifact_id': source['artifact_id'],
                                  'source_line': line,
                                  'source_field': ['item', 'arguments'] + (['@json'] if encoded_arguments else []) + ['text']})
             elif role == 'raw_decision':
