@@ -993,3 +993,118 @@ class SpecificEffectBoundaryRegressionTests(unittest.TestCase):
             self.assertEqual(42, result['conditional_review_combinations'])
             self.assertEqual([], result['failures'], result['failures'])
             self.assertFalse(result['model_compliance'])
+
+
+class TransportEffectBoundaryRegressionTests(unittest.TestCase):
+    def test_unconfirmed_completion_does_not_certify_a_complete_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = initialize(root / 'workspace', {}, {})
+            host = Host(root / 'workspace', state)
+            result = host.call('inspect', {'resource': 'facts'})
+            stream = [
+                {'type': 'item.completed', 'item': {
+                    'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'inspect',
+                    'arguments': {'resource': 'facts'}, 'result': {
+                        'content': [{'type': 'text', 'text': json.dumps(result)}]}}},
+                {'type': 'item.started', 'item': {
+                    'id': 'edit', 'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'edit',
+                    'arguments': {'path': 'src/settlement.py', 'content': 'permitted bytes'}}},
+                {'type': 'item.completed', 'item': {
+                    'id': 'edit', 'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'edit',
+                    'arguments': {'path': 'src/settlement.py', 'content': 'permitted bytes'},
+                    'result': None, 'error': {'message': 'transport closed'}}},
+            ]
+            self.assertFalse(verify_stream(host.events, stream))
+
+    def test_fixed_transport_effect_and_normal_exit_controls(self):
+        from foundation.conformance.transport_controls import run_transport_boundaries
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_transport_boundaries(Path(tmp) / 'transport')
+            self.assertEqual(26, result['controls'])
+            self.assertEqual(2, result['additional_subvariants'])
+            self.assertEqual(168, result['executed_review_combinations'])
+            self.assertEqual(28, result['conditional_review_combinations'])
+            self.assertEqual([], result['failures'], result['failures'])
+            self.assertFalse(result['model_compliance'])
+
+
+class RequiredObligationCoverageRegressionTests(unittest.TestCase):
+    def test_executed_optional_emission_keeps_raw_uncertainty_but_not_extra_gate(self):
+        from foundation.conformance.chronology_controls import fixture, PLANS
+        from foundation.conformance.constructor_binding import emissions
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = next(row for row in PLANS if row['id'] == 'F6-37')
+            case, variant, observation, context, manifest = fixture(plan, Path(tmp) / 'fresh')
+            self.assertEqual([1], emissions(observation))
+            self.assertEqual('23e44b15027238a84caae3e57cb8ec1b179511b15afe0041575f0e49e4347699',
+                             hashlib.sha256((manifest.parent / 'stdout.jsonl').read_bytes()).hexdigest())
+            result = score(case, variant, observation, context)
+            self.assertEqual('pass', result['status'], result['errors'])
+            self.assertFalse(result['model_compliance'])
+            self.assertIn('MCP operation capture incomplete', result['action_state_result']['capture_diagnostics'])
+
+    def test_constructor_consistency_does_not_accept_stale_or_mutated_loaded_objects(self):
+        from unittest.mock import patch
+        from foundation.conformance import chronology_controls, host
+        from foundation.conformance.constructor_binding import emissions
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = next(row for row in chronology_controls.PLANS if row['id'] == 'F6-37')
+            case, variant, observation, context, _ = chronology_controls.fixture(plan, Path(tmp) / 'fresh')
+            original = host.Host.call
+            def unrelated_call(self, name, arguments):
+                return original(self, name, arguments)
+            with patch.object(host.Host, 'call', unrelated_call):
+                self.assertIsNone(emissions(observation))
+                result = score(case, variant, observation, context)
+                self.assertEqual('incomplete', result['action_state_result']['status'])
+            with patch.dict(chronology_controls.TEXT, risk='changed loaded constant'):
+                self.assertIsNone(emissions(observation))
+                self.assertEqual('incomplete', score(case, variant, observation, context)['status'])
+            from types import FunctionType
+            original_fixture = chronology_controls.fixture
+            alternate = FunctionType(original_fixture.__code__, dict(original_fixture.__globals__),
+                                     original_fixture.__name__, original_fixture.__defaults__)
+            alternate.__globals__['Host'] = object
+            with patch.object(chronology_controls, 'fixture', alternate):
+                self.assertIsNone(emissions(observation))
+            original_code = chronology_controls.fixture.__code__
+            replacement = next(value for value in compile(
+                'def fixture(plan, root, review_mode=None):\n    return None\n', '<stale>', 'exec').co_consts
+                if isinstance(value, type(original_code)))
+            try:
+                chronology_controls.fixture.__code__ = replacement
+                self.assertIsNone(emissions(observation))
+            finally:
+                chronology_controls.fixture.__code__ = original_code
+
+    def test_constructor_proof_requires_all_original_inputs_outputs_and_test_scope(self):
+        from foundation.conformance.chronology_controls import fixture, PLANS
+        from foundation.conformance.constructor_binding import emissions
+        plan = next(row for row in PLANS if row['id'] == 'F6-37')
+        for mutation in ('missing', 'source', 'input', 'emission', 'state', 'actual'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as tmp:
+                case, variant, observation, context, manifest = fixture(plan, Path(tmp) / 'fresh')
+                root = manifest.parent
+                metadata = json.loads((root / 'metadata.json').read_bytes())
+                construction = metadata['construction']
+                if mutation == 'missing':
+                    metadata.pop('construction')
+                    (root / 'metadata.json').write_text(json.dumps(metadata))
+                    observation['process']['metadata_sha256'] = hashlib.sha256((root / 'metadata.json').read_bytes()).hexdigest()
+                elif mutation in {'source', 'input'}:
+                    record = construction['sources']['chronology_controls.py'] if mutation == 'source' else construction['input']
+                    (root / record['path']).write_bytes(b'changed retained dependency')
+                elif mutation == 'emission':
+                    values = [json.loads(line) for line in (root / 'stdout.jsonl').read_bytes().splitlines()]
+                    values[0]['item']['arguments']['text'] = 'different emitted payload'
+                    (root / 'stdout.jsonl').write_text(''.join(json.dumps(value) + '\n' for value in values))
+                    observation['process']['stdout_sha256'] = hashlib.sha256((root / 'stdout.jsonl').read_bytes()).hexdigest()
+                elif mutation == 'state':
+                    observation['final_files'] = {}
+                else:
+                    observation['process']['kind'] = 'actual-codex'
+                self.assertIsNone(emissions(observation))
+                result = score(case, variant, observation, context)
+                self.assertNotEqual('pass', result['status'])
+                self.assertNotEqual('eligible', result['action_state_result']['status'])

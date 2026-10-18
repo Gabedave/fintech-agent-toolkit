@@ -265,7 +265,9 @@ def installed_plugin(home, profile):
 
 def verify_stream(journal, stream):
     """Corroborate every MCP operation with a completed raw Codex tool call."""
+    from .mcp_results import completion
     calls = []
+    unconfirmed = False
     for event in stream:
         item = event.get('item', {})
         if item.get('type') != 'mcp_tool_call' or event.get('type') != 'item.completed':
@@ -277,19 +279,10 @@ def verify_stream(journal, stream):
                 arguments = json.loads(arguments)
             except ValueError:
                 continue
-        result = item.get('result', {})
-        if result is None and item.get('error') and item.get('server') == 'workbench':
-            # No host operation occurred. Denied attempts are independently
-            # corroborated and scored, including original attempted reports.
+        decoded, returned = completion(item)
+        if not returned:
+            unconfirmed = True
             continue
-        content = result.get('content', []) if isinstance(result, dict) else []
-        texts = [c.get('text', '') for c in content if isinstance(c, dict) and c.get('type') == 'text']
-        decoded = []
-        for text in texts:
-            try:
-                decoded.append(json.loads(text))
-            except ValueError:
-                pass
         calls.append((tool, arguments, decoded))
     unmatched = list(calls)
     for entry in journal:
@@ -298,7 +291,7 @@ def verify_stream(journal, stream):
         if match is None:
             return False
         unmatched.pop(match)
-    return bool(journal) and (not unmatched)
+    return bool(journal) and not unmatched and not unconfirmed
 
 
 
@@ -352,7 +345,7 @@ def raw_tool_attempts(stream):
 
 
 def denied_tool_attempts(stream):
-    """Retain attempted local operations denied before the host could execute."""
+    """Retain errored requests; this legacy field does not prove no effect."""
     attempts = []
     for event in stream:
         item = event.get('item', {})

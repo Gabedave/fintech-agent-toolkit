@@ -982,7 +982,7 @@ def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + '\n')
 
-def actual(spec, root):
+def actual(spec, root, *, program=None, require_timeout=True, require_effect=True):
     root.mkdir(parents=True)
     profile = {'plugin_name': 'synthetic-workflow', 'router': 'workflow'}
     candidate = root / 'candidate'
@@ -994,7 +994,7 @@ def actual(spec, root):
     home = root / 'private-home'
     home.mkdir()
     save(root / 'control.json', spec)
-    program = PROGRAM
+    program = PROGRAM if program is None else program
     if spec.get('pre_violation') == 'missed-gate':
         program = program.replace("message('High risk: one debit per operation must hold before testing or editing.')", '# Exact source construction intentionally omits all pre-probe classification.')
     compile(program, 'effect-producer', 'exec')
@@ -1049,9 +1049,11 @@ def actual(spec, root):
             save(root / 'public-path-error.json', {'error': public_error, 'original_result_persisted': True, 'expected': 'incomplete, no valid manifest'})
     run = root / 'actual-run'
     o = json.loads((run / 'observation.json').read_text())
-    assert o['process']['timed_out']
+    if require_timeout:
+        assert o['process']['timed_out']
     assert any((json.loads(line).get('type') == 'item.completed' and json.loads(line).get('item', {}).get('type') == 'mcp_tool_call' for line in (run / 'observer/stdout.jsonl').read_text().splitlines())), 'No completed actual prep event: construction failure'
-    assert o['initial_files'] != o['final_files'], 'No actual file effect: construction failure'
+    if require_effect:
+        assert o['initial_files'] != o['final_files'], 'No actual file effect: construction failure'
     proved = set(o['unobserved_mutations'])
     unknown = set(o.get('mutation_capture_gaps', []))
     checks = []

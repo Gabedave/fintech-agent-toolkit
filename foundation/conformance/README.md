@@ -23,6 +23,8 @@ review combinations for 11 genuinely missing-artifact cases remain conditional:
 the required raw roles cannot be fabricated into a valid manifest.
 An additional 44 effect-specific controls and one missing-capture subvariant
 exercise 273 review combinations; 42 missing-role combinations are conditional.
+Another 26 transport/effect controls and two normal-exit subvariants execute 168
+review combinations; 28 missing-role combinations remain conditional.
 These extra state and capture constructions do not change the original acceptance
 case counts. The latter include
 actual local pipe capture, review-arrival permutations and native-adapter controls;
@@ -92,6 +94,11 @@ unresolved operations, including store synchronization, selector subprocesses an
 SQLite sidecars. A pending source edit can explain unfinished bytes on its
 permitted path; a pending facts read cannot explain a source-file change. One
 unknown effect never excuses a separately proved unrelated change.
+An errored or missing MCP response does not establish rejection before execution.
+Its actual argument-specific possible effects remain unresolved, even when the
+CLI exits normally. A concrete returned Host error can be corroborated against
+its actual journal; that corroboration does not establish successful task work.
+Known forbidden requests and complete contradictory results still fail.
 
 The producer retains launch configuration and source/dependency copies before
 execution. Hash links from captured metadata and the capture sidecar close every
@@ -225,3 +232,22 @@ remain pending. Legacy decision, source-review and company-default companion
 suites remain mandatory separate evidence. A synthetic pass does not establish
 those integrations, authorize actions, or justify a model retry after a usable
 failure.
+
+
+Unconfirmed transport completions remain unknown even when the CLI exits normally.
+They retain the actual argument-specific possible effect; error wording does not
+prove denial or absence of an effect. An independently proved violation remains a
+failure while an unresolved material operation blocks a positive result.
+
+Completeness is assessed against every fixed required obligation. A freshly
+executed canonical sensitivity constructor can separately prove that a raw
+emission never invoked the host. That conditional proof requires preconstruction
+source/input bytes and modes, loaded-code and dependency consistency, actual
+invocation/completion measurements, output hashes, and unchanged postconstruction
+sources. Every actual operation, state snapshot, file hash, report witness and
+order must still corroborate. Strict transport diagnostics remain visible in
+`action_state_result.capture_diagnostics`; the original stream is used for all
+forbidden-request, semantic and order checks. Old unbound inputs receive no such
+proof. This bounded constructor path cannot authenticate execution origin and is
+never available to actual model runs. An optional acknowledgment is not an extra
+required operation when all fixed obligations are independently complete.

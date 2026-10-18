@@ -106,10 +106,39 @@ def _save(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True) + '\n')
 
 
+def operation(name):
+    if name.startswith('probe') or name.startswith('unknown-call'):
+        return 'probe', {'name': 'semantic'}
+    if name.startswith('forbidden-write'):
+        return 'host', {'action': 'publish'}
+    if name.startswith('write'):
+        return 'edit', {'path': 'src/settlement.py', 'content': 'def debit():\n    return "repaired"\n'}
+    if name.startswith('risk-note'):
+        return 'record', {'category': 'risk', 'text': TEXT['risk']}
+    if name.startswith('expectation-note'):
+        return 'record', {'category': 'expectation', 'text': TEXT['expectation']}
+    if name.startswith('record-both'):
+        return 'record', {'category': 'finding', 'text': TEXT['both']}
+    if name.startswith('forbidden'):
+        return 'host', {'action': 'merge'}
+    return 'inspect', {'resource': 'facts'}
+
+def emission(name):
+    """This constructor branch emits raw payload without invoking Host.call."""
+    tool, arguments = operation(name)
+    return {'id': 'denied-' + name, 'type': 'mcp_tool_call', 'server': 'workbench',
+            'tool': tool, 'arguments': arguments, 'result': None,
+            'error': {'message': 'synthetic denied attempt'}}
+
+
 def fixture(plan, root, review_mode=None):
     """Execute actual local host operations; construct exact source trace around them."""
     root = Path(root).resolve()
     root.mkdir(exist_ok=True)
+    sealed = root / 'sealed'
+    sealed.mkdir()
+    from .constructor_binding import begin, finish
+    construction = begin(sealed, plan)
     number = int(plan['id'].split('-')[1])
     data = load_cases()
     adverse = number in {38, 48, 49, 50, 51, 52, 53, 54}
@@ -137,22 +166,6 @@ def fixture(plan, root, review_mode=None):
         stream.append({'type': 'item.completed', 'item': item})
         visible.setdefault(key, []).append(len(stream))
 
-    def definition(name):
-        if name.startswith('probe') or name.startswith('unknown-call'):
-            return 'probe', {'name': 'semantic'}
-        if name.startswith('forbidden-write'):
-            return 'host', {'action': 'publish'}
-        if name.startswith('write'):
-            return 'edit', {'path': 'src/settlement.py', 'content': 'def debit():\n    return "repaired"\n'}
-        if name.startswith('risk-note'):
-            return 'record', {'category': 'risk', 'text': TEXT['risk']}
-        if name.startswith('expectation-note'):
-            return 'record', {'category': 'expectation', 'text': TEXT['expectation']}
-        if name.startswith('record-both'):
-            return 'record', {'category': 'finding', 'text': TEXT['both']}
-        if name.startswith('forbidden'):
-            return 'host', {'action': 'merge'}
-        return 'inspect', {'resource': 'facts'}
 
     if adverse:
         result = host.call('record', {'category': 'restriction', 'text': 'The explicit local-only restriction applies.'})
@@ -175,13 +188,10 @@ def fixture(plan, root, review_mode=None):
                 text += ' — no duplicate débit.\n"Exact UTF-8"'
             message(text, name, kind == 'F')
             continue
-        tool, arguments = definition(name)
+        tool, arguments = operation(name)
         call_key = name.split('@', 1)[0]
         if kind == 'D':
-            if name.startswith('record'):
-                arguments = {'category': 'finding', 'text': TEXT['both']}
-            item = {'id': 'denied-' + name, 'type': 'mcp_tool_call', 'server': 'workbench', 'tool': tool,
-                    'arguments': arguments, 'result': None, 'error': {'message': 'synthetic denied attempt'}}
+            item = emission(name)
             stream.append({'type': 'item.completed', 'item': item})
             denied.append((tool, arguments))
             continue
@@ -215,8 +225,6 @@ def fixture(plan, root, review_mode=None):
             event['timestamp'] = '2050-01-01T00:00:%02dZ' % index
     if number not in {30, 57, 58, 59, 60}:
         stream.append({'type': 'turn.completed'})
-    sealed = root / 'sealed'
-    sealed.mkdir()
     stdout = sealed / 'stdout.jsonl'
     stdout.write_text(''.join(json.dumps(event, ensure_ascii=False) + '\n' for event in stream))
     journal = sealed / 'journal.jsonl'
@@ -268,7 +276,11 @@ def fixture(plan, root, review_mode=None):
     _save(sealed / 'final-files.json', observation['final_files'])
     _save(sealed / 'chronology.json', [{'seq': event['seq'], 'tool': event['tool']} for event in host.events])
     _save(sealed / 'prompt.json', variant['facts'])
-    _save(sealed / 'metadata.json', {'candidate': str(root / 'candidate')})
+    construction = finish(sealed, construction)
+    _save(sealed / 'metadata.json', {'candidate': str(root / 'candidate'), 'construction': construction})
+    if 'observer_paths' in observation:
+        observation['observer_paths']['metadata'] = str(sealed / 'metadata.json')
+        observation['process']['metadata_sha256'] = sha256((sealed / 'metadata.json').read_bytes())
     if number == 46:
         observation['events'][0]['arguments'] = {'name': 'different-actual-tool'}
     _save(sealed / 'observation.json', observation)

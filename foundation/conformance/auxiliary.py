@@ -9,7 +9,8 @@ import json
 
 
 def assess(observation, stream=None, chronology=None):
-    from .chronology import arguments, capture, read_stream, _result
+    from .chronology import arguments, capture, read_stream
+    from .mcp_results import completion
     from .runner import read_host_capture
 
     paths = observation.get('observer_paths', {})
@@ -54,6 +55,7 @@ def assess(observation, stream=None, chronology=None):
 
     starts = []
     completed = []
+    unconfirmed = []
     ambiguous = False
     for number, event in enumerate(stream, 1):
         item = event.get('item', {})
@@ -71,15 +73,18 @@ def assess(observation, stream=None, chronology=None):
         possible = [start for start in starts if not start['used'] and start['identity'] == identity]
         if len(possible) == 1:
             possible[0]['used'] = True
-        if item.get('result') is None and item.get('error'):
-            # Denial is an actual request, but no host effect was returned.
-            continue
         if len(possible) != 1:
             ambiguous = True
+        results, returned = completion(item)
+        if not returned:
+            # Completion of the transport request does not confirm its effect.
+            # Keep the actual argument-specific scope even on a normal CLI exit.
+            unconfirmed.append({'tool': item.get('tool'), 'args': args})
+            continue
         completed.append({'tool': item.get('tool'), 'args': args,
-                          'results': _result(item), 'used': False})
+                          'results': results, 'used': False})
 
-    pending = [start for start in starts if not start['used']]
+    pending = [start for start in starts if not start['used']] + unconfirmed
     contradictions = []
     missing = False
     for event in journal:
