@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "0fd626ad15d28927b28e18e2083f9aa0735afa9e",
+  "source_commit": "71ce002766f05e78818b8ae0ee01174687b73654",
   "plugin_name": "fintech-engineering",
   "plugin_version": "0.2.0",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
     "version": "1.0.0",
-    "commit": "0fd626ad15d28927b28e18e2083f9aa0735afa9e",
-    "digest": "9d9df6c7aa5da87f278f31aa6da034c2f4a93a8aeb4bb8a548b519ddc2897935"
+    "commit": "71ce002766f05e78818b8ae0ee01174687b73654",
+    "digest": "a080951a9841da66a56fdbaea8664dcd3c4b09ac0a86f55b56968f91734a0efc"
   },
   "adapter_revision": "1.0.0",
   "profile_digest": "c53bfed1bf2e82fde8dfc06108d1366d094d7574f7372ba9c0d5f03d260e79c9",
