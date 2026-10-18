@@ -1,6 +1,6 @@
 ---
 name: ci-babysit
-description: Follow a {{AUDIENCE}} pull request's latest commit through repository CI and review feedback, diagnose failures, and make authorized fixes until it is merge-ready. Use for the default delivery of non-trivial {{AUDIENCE}} implementation work or when the user asks to monitor, investigate, or repair PR checks; never infer permission to merge.
+description: Follow a {{AUDIENCE}} pull request's latest commit through repository CI and review feedback, diagnose failures, and make authorized fixes until it is merge-ready. Use when authorized delivery includes CI follow-through or when the user asks to monitor, investigate, or repair PR checks; never infer permission to merge.
 ---
 
 # Ci Babysit

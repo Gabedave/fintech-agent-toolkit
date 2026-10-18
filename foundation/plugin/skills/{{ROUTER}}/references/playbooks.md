@@ -2,7 +2,9 @@
 
 Choose one primary playbook for the requested outcome. Add another only for a distinct requested outcome with its own steps; supporting skills do not imply additional playbooks. In particular, verifier updates inside a feature stay in the feature playbook, and defects fixed during pull-request check follow-through stay in the CI-failure playbook. Put the selected steps in the working plan verbatim enough that completion and explicit skips remain auditable.
 
-Unless the user explicitly requests local-only work or withholds commit, push, or pull-request actions, pair every non-trivial production repository-editing playbook with pull-request preparation. Select `$ci-babysit` through the latest-head checks and review state unless the user withholds CI follow-through. A CI-only constraint leaves pull-request delivery intact; a withheld commit or push also blocks any downstream PR delivery that would require those unpublished commits. Never invent an empty or stale PR to preserve a downstream stage. Throwaway prototypes stay local unless the user separately asks to retain or publish them. This default delivery path does not add the CI-failure playbook unless a failure must be diagnosed or repaired, and never grants merge or deploy authority.
+Apply the company delivery policy before selecting delivery stages. {{DELIVERY_POLICY}}
+
+Pair a non-trivial production repository-editing playbook with pull-request preparation and select `$ci-babysit` only when the company policy and user authorize publication and follow-through. A CI-only restriction leaves otherwise authorized pull-request delivery intact; a withheld commit or push also blocks downstream PR delivery that would require those unpublished commits. Never invent an empty or stale PR to preserve a downstream stage. Throwaway prototypes stay local unless the user separately asks to retain or publish them. Selecting delivery stages does not add the CI-failure playbook unless a failure must be diagnosed or repaired, and never grants merge or deploy authority.
 
 ## None — proportional trivial task
 

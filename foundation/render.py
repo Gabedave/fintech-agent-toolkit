@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -42,6 +43,17 @@ def json_bytes(value):
 
 def digest(value):
     return hashlib.sha256(value).hexdigest()
+
+
+def file_mode(path):
+    mode = stat.S_IMODE(path.stat().st_mode)
+    if mode not in (0o644, 0o755):
+        raise Invalid(f"unsupported file mode {mode:04o}: {path}; expected 0644 or 0755")
+    return f"{mode:04o}"
+
+
+def file_record(content, mode):
+    return {"sha256": digest(content), "mode": mode}
 
 
 def unique_object(pairs):
@@ -191,10 +203,11 @@ def generate(profile, commit):
             source_files.append(path)
             if bundle in path.parents:
                 bundle_files.append(path)
-    source_hashes = {path.relative_to(FOUNDATION).as_posix(): digest(path.read_bytes())
+    source_hashes = {path.relative_to(FOUNDATION).as_posix(): file_record(path.read_bytes(), file_mode(path))
                      for path in source_files}
     tokens = substitutions(profile)
     files = {}
+    modes = {}
     for path in bundle_files:
         relative = substitute(path.relative_to(bundle).as_posix(), tokens)
         if any(part in ("", ".", "..") for part in relative.split("/")) or relative.startswith("/"):
@@ -202,6 +215,7 @@ def generate(profile, commit):
         destination = f"plugins/{profile['plugin_name']}/{relative}"
         if destination in files:
             raise Invalid("generated file paths collide")
+        modes[destination] = source_hashes[path.relative_to(FOUNDATION).as_posix()]["mode"]
         try:
             content = path.read_text(encoding="utf-8")
         except UnicodeError as error:
@@ -235,26 +249,29 @@ def generate(profile, commit):
                      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
                      "category": "Productivity"}],
     })
+    modes[".agents/plugins/marketplace.json"] = "0644"
     foundation = {"repository": FOUNDATION_REPOSITORY, "version": version["version"],
                   "commit": commit, "digest": digest(canonical(source_hashes))}
     identity = {
-        "schema_version": 1, "canonical_repository": profile["repository_url"],
+        "schema_version": 2, "canonical_repository": profile["repository_url"],
         "source_commit": commit, "plugin_name": profile["plugin_name"],
         "plugin_version": profile["plugin_version"], "foundation": foundation,
         "adapter_revision": profile["adapter_revision"], "profile_digest": digest(canonical(profile)),
     }
     prefix = f"plugins/{profile['plugin_name']}/"
-    content_files = {name[len(prefix):]: digest(content) for name, content in sorted(files.items())
+    content_files = {name[len(prefix):]: file_record(content, modes[name]) for name, content in sorted(files.items())
                      if name.startswith(prefix)}
     provenance_path = prefix + ".codex-plugin/foundation-provenance.json"
     if provenance_path in files:
         raise Invalid("foundation source must not supply generated provenance")
     files[provenance_path] = json_bytes(dict(identity, content_files=content_files,
                                             content_digest=digest(canonical(content_files))))
-    hashes = {name: digest(content) for name, content in sorted(files.items())}
+    modes[provenance_path] = "0644"
+    hashes = {name: file_record(content, modes[name]) for name, content in sorted(files.items())}
     lock = dict(identity, generated_tree_digest=digest(canonical(hashes)), files=hashes)
     files[LOCK] = json_bytes(lock)
-    return files
+    modes[LOCK] = "0644"
+    return files, modes
 
 
 def validate_destination(output, profile, files):
@@ -271,14 +288,44 @@ def validate_destination(output, profile, files):
     if marketplace.exists() and read_json(marketplace) != json.loads(files[marketplace_name]):
         raise Invalid("existing marketplace has another identity, plugin, or custom metadata; reconcile explicitly or use clean output")
     lock_path = output / LOCK
-    if lock_path.exists():
+    if not lock_path.exists():
+        occupied = [name for name in files if (output / name).exists()]
+        if occupied:
+            raise Invalid("initial managed destination must be clean; existing files require explicit reconciliation: "
+                          + ", ".join(sorted(occupied)))
+    else:
+        if file_mode(lock_path) != "0644":
+            raise Invalid("existing root lock mode differs from its required 0644; preserve and reconcile explicitly")
         existing = read_json(lock_path)
         expected = json.loads(files[LOCK])
         exact_keys(existing, set(expected), "existing foundation lock")
-        if (type(existing["schema_version"]) is not int or existing["schema_version"] != 1
+        if (type(existing["schema_version"]) is not int or existing["schema_version"] != 2
                 or existing["plugin_name"] != profile["plugin_name"]
                 or existing["canonical_repository"] != profile["repository_url"]):
-            raise Invalid("existing foundation lock belongs to another profile or unsupported schema; use clean output")
+            raise Invalid("existing foundation lock belongs to another profile or unsupported schema; use reconciled clean output")
+        previous_files = existing["files"]
+        if not isinstance(previous_files, dict) or not previous_files:
+            raise Invalid("existing ownership lock has no complete managed file map")
+        for name, record in previous_files.items():
+            if name not in files or name == LOCK:
+                raise Invalid("existing lock names unsupported managed paths; reconcile explicitly")
+            exact_keys(record, {"sha256", "mode"}, "existing file record")
+            if (not isinstance(record["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
+                    or record["mode"] not in ("0644", "0755")):
+                raise Invalid("existing ownership lock has an unsupported file record")
+            target = output / name
+            if not target.is_file():
+                raise Invalid(f"existing managed file is missing: {name}; preserve and reconcile explicitly")
+            actual_record = file_record(target.read_bytes(), file_mode(target))
+            # A structurally identical owned marketplace may differ in whitespace;
+            # the complete metadata comparison above establishes safe ownership.
+            if actual_record["mode"] != record["mode"] or (actual_record["sha256"] != record["sha256"] and name != marketplace_name):
+                raise Invalid(f"existing managed content or mode differs from ownership lock: {name}; preserve and reconcile explicitly")
+        if existing["generated_tree_digest"] != digest(canonical(previous_files)):
+            raise Invalid("existing ownership lock has an inconsistent tree digest")
+        unowned = [name for name in files if name != LOCK and (output / name).exists() and name not in previous_files]
+        if unowned:
+            raise Invalid("existing planned files lack positive ownership: " + ", ".join(sorted(unowned)))
     plugin = output / "plugins" / profile["plugin_name"]
     actual = set()
     if plugin.exists():
@@ -299,11 +346,12 @@ def run(profile_path, output, commit, check=False):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise Invalid("source-commit must be an explicit 40-character lowercase hex foundation commit")
     profile = validate_profile(profile_path)
-    files = generate(profile, commit)
+    files, modes = generate(profile, commit)
     validate_destination(output, profile, files)
     if check:
         mismatches = [name for name, content in files.items()
-                      if not (output / name).is_file() or (output / name).read_bytes() != content]
+                      if not (output / name).is_file() or (output / name).read_bytes() != content
+                      or file_mode(output / name) != modes[name]]
         if mismatches:
             raise Invalid("generated output or provenance differs: " + ", ".join(sorted(mismatches)))
         return
@@ -317,7 +365,7 @@ def run(profile_path, output, commit, check=False):
             with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".render-", delete=False) as stream:
                 temporary = Path(stream.name)
                 stream.write(content)
-            os.chmod(temporary, 0o644)
+            os.chmod(temporary, int(modes[name], 8))
             os.replace(temporary, target)
         finally:
             if temporary is not None and temporary.exists():

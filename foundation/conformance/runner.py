@@ -10,6 +10,7 @@ import selectors
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -44,8 +45,21 @@ def workbench_permissions():
 
 
 def tree_hash(root):
-    hashes = files(root)
-    return (hashlib.sha256(json.dumps(hashes, sort_keys=True, separators=(',', ':')).encode()).hexdigest(), hashes)
+    root = Path(root)
+    records = {}
+    for path in sorted(root.rglob('*')):
+        if '.git' in path.parts or '__pycache__' in path.parts:
+            continue
+        if path.is_symlink():
+            raise ValueError('candidate installation contains a symbolic link: ' + str(path.relative_to(root)))
+        if not path.is_file():
+            continue
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if mode not in {420, 493}:
+            raise ValueError('unsupported candidate file mode: ' + str(path.relative_to(root)))
+        records[path.relative_to(root).as_posix()] = {'sha256': digest(path), 'mode': format(mode, '04o')}
+    canonical = json.dumps(records, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+    return (hashlib.sha256(canonical).hexdigest(), records)
 
 
 def safe_env(home):
@@ -243,6 +257,25 @@ def verify_stream(journal, stream):
     return bool(journal) and (not unmatched)
 
 
+
+def denied_tool_attempts(stream):
+    """Retain attempted local operations denied before the host could execute."""
+    attempts = []
+    for event in stream:
+        item = event.get('item', {})
+        if event.get('type') != 'item.completed' or item.get('type') != 'mcp_tool_call':
+            continue
+        if item.get('server') != 'workbench' or item.get('result') is not None or (not item.get('error')):
+            continue
+        arguments = item.get('arguments', {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except ValueError:
+                continue
+        attempts.append({'tool': item.get('tool'), 'arguments': arguments, 'result': {}, 'seq': len(stream) + len(attempts) + 1})
+    return attempts
+
 def final_message(stream):
     return '\n'.join(e.get('item',{}).get('text','') for e in stream
                      if e.get('type')=='item.completed' and e.get('item',{}).get('type')=='agent_message')
@@ -295,6 +328,7 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     state_path = private / 'state.json'
     state_path.write_text(json.dumps(state))
     journal = private / 'journal.jsonl'
+    journal.touch()
     config = {
         'workspace': str(workspace),
         'state': str(state_path),
@@ -325,6 +359,9 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
                  events,
                  raw['events']
              ), 'stdout_sha256':digest(private/'stdout.jsonl')}
+    denied_attempts = denied_tool_attempts(raw['events'])
+    if not events and denied_attempts:
+        process['operational_error'] = 'workbench capability unavailable; no host operation executed'
     if raw['timed_out'] or (raw['exit'] and (not events)):
         process['operational_error'] = 'no usable completed process result'
     obs={'events':events,'initial':initial,'final':final,'initial_files':initial_files,'final_files':end,
@@ -335,11 +372,13 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
              'stdout':str(private/'stdout.jsonl'),
              'state':str(state_path)
          }}
+    obs['denied_attempts'] = denied_attempts
     result = score(case, variant, obs)
     if candidate_files != installed_files:
         result['status'] = 'fail'
         result['model_compliance'] = False
-        result['errors'].append('installed bytes differ from exact candidate')
+        result['known_behavioral_failure'] = True
+        result['errors'].append('installed bytes or file modes differ from exact candidate')
     # Generic shell should be absent, not merely unused. Any invocation proves
     # this feature configuration failed to constrain the experiment.
     for e in raw['events']:
@@ -526,7 +565,7 @@ def main():
         summary={'variants':len(results),'pass':sum(r['status']=='pass' for r in results),
                  'fail':sum(r['status']=='fail' for r in results),'incomplete':sum(r['status']=='incomplete' for r in results),
                  'implicit_routing':implicit,'profile':profile['plugin_name'],'results':results,
-                 'A6':'product integration pending','A7':'product integration pending','operational_replacements':0,'contract_binding':args.contract_binding,'full_acceptance':False,'release_ready':False}
+                 'A6':'product integration pending','A7':'product integration pending','operational_replacements':0,'operational_incomplete_results':sum(r.get('operational_incomplete',False) for r in results),'contract_binding':args.contract_binding,'full_acceptance':False,'release_ready':False}
         # Reread the independent immutable inputs after the complete run.
         load_cases(args.fixtures, args.contract)
         current_revision = subprocess.check_output(
