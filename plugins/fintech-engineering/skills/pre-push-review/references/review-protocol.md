@@ -27,6 +27,8 @@ For every acceptance criterion retain:
 
 Use `confirmed`, `partial`, `unverified`, or `failed`. A prior run, stale reviewer verdict, or successful check that did not exercise the changed behavior is not fresh evidence.
 
+Before reporting a command result, reconcile its complete captured output, exit status, test summary and coverage boundary. Warnings can coexist with a later successful summary; report both accurately. An exit code alone cannot establish that tests ran, and a passing existing suite does not establish coverage of a newly identified risk. Truncated or unavailable output leaves the affected claim unverified. Preserve valid defect findings independently of the command's result.
+
 ### Changed-boundary proof
 
 Derive relevant risks from the requirements and source before choosing tests. Repository maps are an execution index, not the ceiling of the review. Reuse their commands, but inspect whether the selected cases actually cross the changed boundary. A test file being mapped or a large passing test count does not establish that.
