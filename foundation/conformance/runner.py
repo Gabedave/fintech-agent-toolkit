@@ -94,6 +94,8 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
     raw_hashes = {k: hashlib.sha256() for k in ('stdout', 'stderr')}
     safe_headers = []
     feature_state = {}
+    feature_rows = []
+    feature_conflicts = set()
     diagnostic_classes = set()
     buffers = {'stdout': b'', 'stderr': b''}
     capture_gaps = []
@@ -111,7 +113,15 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
                 safe_headers.append(decoded)
             match = re.fullmatch('(shell_tool|unified_exec)\\s+stable\\s+(true|false)', decoded)
             if match:
-                feature_state[match.group(1)] = match.group(2) == 'true'
+                name_key, value = match.group(1), match.group(2) == 'true'
+                if name_key in feature_state and feature_state[name_key] != value:
+                    feature_conflicts.add(name_key)
+                feature_state[name_key] = value
+                if len(feature_rows) < 64:
+                    feature_rows.append({'stream': name, 'line': decoded})
+                else:
+                    errors.append('allowlisted feature row limit exceeded')
+                    capture_gaps.append({'kind': 'allowlisted-feature-row-limit'})
             lower = decoded.lower()
             for word in (
                 'authentication',
@@ -216,6 +226,14 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         'classified': sorted(diagnostic_classes),
         'allowlisted_headers': safe_headers,
         'tool_features': feature_state,
+        'allowlisted_feature_rows': feature_rows,
+        'feature_conflicts': sorted(feature_conflicts),
+        'process_exit': p.returncode,
+        'timed_out': timed_out,
+        'parse_errors': errors,
+        'capture_gaps': capture_gaps,
+        'command_sha256': hashlib.sha256(json.dumps(list(command), separators=(',', ':')).encode()).hexdigest(),
+        'non_json_stdout_retained': False,
         'raw_stderr_retained': False
     }
     (output / 'diagnostics.json').write_text(json.dumps(diagnostics, indent=2))
@@ -240,8 +258,30 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         'events': events,
         'parse_errors': errors,
         'diagnostics': diagnostics,
+        'capture_gaps': capture_gaps,
         'capture_sha256': digest(output / 'capture.json')
     }
+
+
+def complete_probe(probe):
+    """A plausible header or feature map cannot rescue an incomplete process."""
+    return (type(probe.get('exit')) is int and probe['exit'] == 0 and probe.get('timed_out') is False
+            and probe.get('parse_errors') == [] and probe.get('capture_gaps') == [])
+
+
+def require_tool_isolation(probe):
+    diagnostics = probe['diagnostics']
+    if (not complete_probe(probe) or diagnostics.get('feature_conflicts') != []
+            or diagnostics.get('tool_features') != {'shell_tool': False, 'unified_exec': False}):
+        raise RuntimeError('disabled generic tool features could not be independently verified')
+
+
+def require_effective_model(probe):
+    models = {h.removeprefix('model: ') for h in probe['diagnostics']['allowlisted_headers']
+              if re.fullmatch(r'model: [A-Za-z0-9._:/-]{1,120}', h)}
+    if not complete_probe(probe) or len(models) != 1:
+        raise RuntimeError('effective model could not be pinned from a complete successful CLI probe')
+    return next(iter(models))
 
 
 def installed_plugin(home, profile):
@@ -709,8 +749,7 @@ def main():
             30
         )
         args.feature_probe = feature['diagnostics']
-        if feature['diagnostics']['tool_features'] != {'shell_tool': False, 'unified_exec': False}:
-            raise RuntimeError('disabled generic tool features could not be independently verified')
+        require_tool_isolation(feature)
         probe_command = [
             'codex',
             'exec',
@@ -739,10 +778,7 @@ def main():
             """Reply PROBE_READY. Do not invoke tools or access files."""
         )
         args.model_probe = probe['diagnostics']
-        models = [h.removeprefix('model: ') for h in probe['diagnostics']['allowlisted_headers'] if h.startswith('model: ')]
-        if probe['exit'] or len(set(models)) != 1:
-            raise RuntimeError('effective model could not be pinned from allowlisted CLI header')
-        args.effective_model = models[0]
+        args.effective_model = require_effective_model(probe)
         # Pin the discovered actual default consistently for all scored tasks.
         args.model = args.effective_model
         results = []
