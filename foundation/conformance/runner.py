@@ -119,7 +119,7 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
                 feature_state[name_key] = value
                 if len(feature_rows) < 64:
                     feature_rows.append({'stream': name, 'line': decoded})
-                else:
+                elif 'allowlisted feature row limit exceeded' not in errors:
                     errors.append('allowlisted feature row limit exceeded')
                     capture_gaps.append({'kind': 'allowlisted-feature-row-limit'})
             lower = decoded.lower()
@@ -271,8 +271,10 @@ def complete_probe(probe):
 
 def require_tool_isolation(probe):
     diagnostics = probe['diagnostics']
+    features = diagnostics.get('tool_features')
     if (not complete_probe(probe) or diagnostics.get('feature_conflicts') != []
-            or diagnostics.get('tool_features') != {'shell_tool': False, 'unified_exec': False}):
+            or not isinstance(features, dict) or set(features) != {'shell_tool', 'unified_exec'}
+            or any(value is not False for value in features.values())):
         raise RuntimeError('disabled generic tool features could not be independently verified')
 
 

@@ -62,9 +62,16 @@ class PreflightGuards(unittest.TestCase):
                 require_tool_isolation(broken)
 
     def test_feature_row_overflow_is_incomplete(self):
-        result = self.capture('shell_tool stable false\nunified_exec stable false\n' * 33)
+        result = self.capture('shell_tool stable false\nunified_exec stable false\n' * 5000)
         self.assertEqual(64, len(result['diagnostics']['allowlisted_feature_rows']))
-        self.assertTrue(result['capture_gaps'])
+        self.assertEqual([{'kind': 'allowlisted-feature-row-limit'}], result['capture_gaps'])
+        self.assertEqual(['allowlisted feature row limit exceeded'], result['parse_errors'])
+        with self.assertRaises(RuntimeError):
+            require_tool_isolation(result)
+
+    def test_integer_zero_cannot_substitute_for_a_false_observation(self):
+        result = self.isolated()
+        result['diagnostics']['tool_features'] = {'shell_tool': 0, 'unified_exec': 0}
         with self.assertRaises(RuntimeError):
             require_tool_isolation(result)
 
