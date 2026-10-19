@@ -58,9 +58,7 @@ Keep confirmed and not-applicable items to one concise row or sentence each. Exp
 
 Report `INDEPENDENT REVIEW: PERFORMED` only for a context-isolated reviewer; otherwise report `INDEPENDENT REVIEW: NOT PERFORMED`. The current context-isolated reviewer counts as an attempt even when it must not delegate a replacement reviewer. On an initial pass, report `CONSENSUS: ACHIEVED` only for a ready candidate without unresolved blockers, `CONSENSUS: NOT ACHIEVED` for a blocking or incomplete result, and `CONSENSUS: HUMAN DECISION REQUIRED` only for an actual product-intent or risk-tolerance dispute. End with exactly one of `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.
 
-For toolkit plugin-behavior changes, completion evidence must include a live installed-candidate run from disposable Codex state. It must identify the clean candidate commit and manifest version and pass every checked-in behavior scenario. Deterministic routing and schema checks cannot substitute for this gate.
-
-Review-gate/evaluator changes additionally use the local paired review-quality pilot. Routing-smoke success proves workflow decisions, not defect detection. The pilot must reproduce the seeded defects and accept their fixed controls; missing, failed, or incomplete cases are not a passing pilot. Keep product regressions in their owning repositories and synthetic evaluation fixtures in the toolkit.
+Apply the applicable toolkit gates in [Final verification](../SKILL.md#final-verification). Missing, failed or incomplete cases cannot pass. Keep product regressions in owning repositories and synthetic evaluation fixtures in the toolkit.
 
 ## Stopping rules
 
