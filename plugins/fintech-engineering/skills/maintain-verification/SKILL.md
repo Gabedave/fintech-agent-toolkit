@@ -17,6 +17,16 @@ Treat repository verification as maintained product infrastructure. During a ver
 
 Read [references/lifecycle.md](references/lifecycle.md) for the required verifier contract and result classification. For persistence, replay, ownership or fencing changes, complete its storage proof plan. In audit/planning-only tasks, propose the concrete setup and observations without launching services, editing files or claiming executed proof.
 
+For each required storage invariant, return a proof plan with these fields, applying the lifecycle recipe:
+
+- **Setup:** backend/adapter and invocation; a named temporary database/file path or database/schema, fresh namespace, deterministic synthetic seed and transaction boundaries.
+- **Action:** the adapter operations and connection/transaction sequence, including reopen/separate-connection replay and stale/current actor steps where applicable.
+- **Observation:** explicit before/after queries of operation, owner/attempt/fence and ledger/effect rows; expected committed effect counts, stable outcome, and no partial commit or stale mutation.
+- **Control:** current-owner success, seeded defect sensitivity, and omitted/complete selector collection against required IDs; keep product CI and aggregate proof separate.
+- **Cleanup:** which owned namespace/resources are removed, when connections close and how cleanup is checked.
+
+If the backend is absent, label missing resources and commands PROPOSED and state the missing adapter integration. Still provide a concrete proposed isolation resource and transaction/observation design. A generic integration-later statement is incomplete; the proposal remains planned/INCOMPLETE rather than executed storage proof.
+
 ## Repair honestly
 
 - `clean`: source, command, proof claim, and safe execution agree.
