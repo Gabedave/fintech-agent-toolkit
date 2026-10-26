@@ -43,6 +43,28 @@ class LocalWorkflowContract(unittest.TestCase):
         self.assertIn("storage proof plan", text)
         self.assertIn("references/lifecycle.md", text)
 
+    def test_planning_response_exposes_verifiable_fields(self):
+        text = (SKILLS / "maintain-verification/SKILL.md").read_text()
+        self.assertIn("return a proof plan with these fields", text)
+        for field in ("**Setup:**", "**Action:**", "**Observation:**", "**Control:**", "**Cleanup:**"):
+            self.assertIn(field, text)
+        for setup in ("temporary database/file path or database/schema", "fresh namespace",
+                      "transaction boundaries", "backend/adapter and invocation"):
+            self.assertIn(setup, text)
+
+    def test_primary_planning_contract_requires_durable_before_after_queries(self):
+        text = (SKILLS / "maintain-verification/SKILL.md").read_text()
+        for observation in ("before/after queries", "operation, owner/attempt/fence and ledger/effect rows",
+                            "no partial commit", "reopen/separate-connection replay",
+                            "current-owner success", "seeded defect"):
+            self.assertIn(observation, text)
+
+    def test_missing_backend_requires_honest_concrete_proposal(self):
+        text = (SKILLS / "maintain-verification/SKILL.md").read_text()
+        self.assertIn("label missing resources and commands PROPOSED", text)
+        self.assertIn("concrete proposed isolation resource and transaction/observation design", text)
+        self.assertIn("generic integration-later statement is incomplete", text)
+
     def test_storage_plan_names_owned_isolation_and_durable_observations(self):
         text = (SKILLS / "maintain-verification/references/lifecycle.md").read_text()
         for requirement in ("## Storage proof plans", "per-test temporary database/file",
