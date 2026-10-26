@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "0fa19291a5e2e3957b24e060fc100eaa7133b197",
+  "source_commit": "047baf3a53e7545b1f9a69f80251d3aaa42ee5e2",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.1",
+  "plugin_version": "0.2.2",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.1",
-    "commit": "0fa19291a5e2e3957b24e060fc100eaa7133b197",
-    "digest": "d82f879dadb89d7a1ca54ebd8b75697c44e4d0439966d8d902d78c2dd3d75895"
+    "version": "1.0.2",
+    "commit": "047baf3a53e7545b1f9a69f80251d3aaa42ee5e2",
+    "digest": "468ab6f2649ced6bf26e1ba35b02ad841150abca9e3c3e6f1d27449a51537d09"
   },
-  "adapter_revision": "1.0.0",
-  "profile_digest": "45ccc12680666d020fab8ac6287ed2e21dae5edf137e3fd6a64c294a0dd9ead0",
+  "adapter_revision": "1.0.1",
+  "profile_digest": "b6ea6e390ea076daa15bdf777a8addcf040b5ebcd1849cbd28753a84a5b749be",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "afaeb3aad435d80e7fc1e99419d4a9adf8cbb574efa2c9afbf373aa91d854bbc",
+      "sha256": "fc468c95cd6ae55f851f5a07477d66387201344029262495a1e0f6ee8b9fc525",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -102,7 +102,7 @@
       "mode": "0644"
     },
     "skills/how/SKILL.md": {
-      "sha256": "e9ea69456e08640a21baf7cc4edd35acd55939ae88af8d9111f5d5f706e8447a",
+      "sha256": "c784f8847b4dedb70eb0b6d0afc6b38074db943a471f960f638409e9df1044bc",
       "mode": "0644"
     },
     "skills/how/agents/openai.yaml": {
@@ -110,11 +110,11 @@
       "mode": "0644"
     },
     "skills/how/references/explanation.md": {
-      "sha256": "49da395723b231e1fd8a5d2903de234109d3955db9f66163ce1ded03c8ebf8cd",
+      "sha256": "86feb5023a9414aaa599a49236bfc667d8a3a0ce7365cac655029c6775eb14f5",
       "mode": "0644"
     },
     "skills/maintain-verification/SKILL.md": {
-      "sha256": "9d6c5d74ea3ff6da486e4d7e329e11152a0bcf678c91beb3a311aa0be6ca8b6b",
+      "sha256": "51128f469c95c7efc3a63e128040a4c3b5d49b882e970c29c26347ff1a4e2104",
       "mode": "0644"
     },
     "skills/maintain-verification/agents/openai.yaml": {
@@ -122,7 +122,7 @@
       "mode": "0644"
     },
     "skills/maintain-verification/references/lifecycle.md": {
-      "sha256": "6d29faa9998524072f75be560eab32bcea5530e8c1cadd94f5df22191865fac3",
+      "sha256": "b9f854abf86d7d73cd1399595b24d16fbf7eed402c7d8bf829fff61a96665440",
       "mode": "0644"
     },
     "skills/pre-push-review/SKILL.md": {
@@ -182,5 +182,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "c07b9ea31ab96bebe8a3814d7c1202aeca5b0cb13d857063bcfebcb5f01cd108"
+  "content_digest": "04d1ca8f11d56c0f3b411d905af5e662dac5104dff8b9ae04cf2124799fc13c8"
 }
