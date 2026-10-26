@@ -135,6 +135,9 @@ def build(streams, journal):
 
 def capture(observation, context=None):
     """Read exact retained evidence. Actual mode has no simulated fallback."""
+    if observation.get('transport') == 'ordinary-native-read-only-v1':
+        from .native_capture import chronology
+        return chronology(observation)
     paths = observation.get('observer_paths', {})
     raw_paths = [paths['stdout']] if paths.get('stdout') else []
     raw_paths += paths.get('report_streams', [])

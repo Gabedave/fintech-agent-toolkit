@@ -112,7 +112,8 @@ def report_projection(root, artifacts):
     from .chronology import build, message_phase, read_stream
     from .runner import read_host_capture
     observation_source = next((source for source in artifacts if source['role'] == 'observation'), None)
-    process = json.loads(_path(root, observation_source['path']).read_bytes()).get('process', {}) if observation_source else {}
+    observation = json.loads(_path(root, observation_source['path']).read_bytes()) if observation_source else {}
+    process = observation.get('process', {})
     interrupted = bool(process.get('timed_out') or process.get('operational_error'))
     raw_streams = [(source['artifact_id'], read_stream(_path(root, source['path']), interrupted))
                    for source in artifacts if source['role'] == 'raw_process_stream' and source.get('source_format', 'jsonl') == 'jsonl']
@@ -159,7 +160,13 @@ def report_projection(root, artifacts):
                 text = item.get('text')
                 if not isinstance(text, str):
                     raise ValueError('message text is not UTF-8 text')
-                phase, _ = message_phase([value for _, value in values], line, len(raw_streams) > 1)
+                if observation.get('transport') == 'ordinary-native-read-only-v1':
+                    from .native_capture import message_phase as native_message_phase
+                    phase, known = native_message_phase([value for _, value in values], line)
+                    if not known:
+                        raise ValueError('native report phase incomplete; raw text remains retained')
+                else:
+                    phase, _ = message_phase([value for _, value in values], line, len(raw_streams) > 1)
                 row = {'_position': (source_rank[source['artifact_id']], line), 'text': text, 'phase': phase, 'event_seq': None,
                        'category': 'message', 'source_artifact_id': source['artifact_id'],
                        'source_line': line, 'source_field': ['item', 'text']}

@@ -158,6 +158,10 @@ def postlaunch_sources(observer_dir, reference):
 
 def validate(observation):
     """Revalidate retained closure; unknown linkage supplies no effect proof."""
+    if observation.get('transport') == 'ordinary-native-read-only-v1':
+        from .native_capture import validate_capture
+        result = validate_capture(observation)
+        return {'purpose': 'ordinary-native-read-only', 'origin_authenticated': False} if result['status'] == 'verified-subset' else None
     from .runner import tree_hash
     try:
         paths = observation['observer_paths']

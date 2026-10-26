@@ -9,6 +9,11 @@ import json
 
 
 def assess(observation, stream=None, chronology=None):
+    if observation.get('transport') == 'ordinary-native-read-only-v1':
+        from .source_binding import validate
+        return {'effects_complete': False, 'state_covered': False, 'contradictions': [],
+                'pending': True, 'legacy_fixture': False, 'source_supported': validate(observation) is not None,
+                'primary_complete': False, 'unresolved': observation.get('native_attempts', [])}
     from .chronology import arguments, capture, read_stream
     from .mcp_results import completion
     from .runner import read_host_capture
@@ -121,6 +126,9 @@ def assess(observation, stream=None, chronology=None):
 
 def mutations(observation, coverage):
     """Classify each delta against the actual unresolved operation effects."""
+    if observation.get('transport') == 'ordinary-native-read-only-v1':
+        before, after = observation.get('initial_files', {}), observation.get('final_files', {})
+        return [], sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
     events = observation.get('events', [])
     latest = events[-1]['after'] if events else observation.get('initial_files', {})
     final = observation.get('final_files', {})

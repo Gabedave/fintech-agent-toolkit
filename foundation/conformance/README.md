@@ -1,5 +1,60 @@
 # Observed-action conformance
 
+## Ordinary native read-only capture
+
+`native_capture.prepare_read_only(...)` prepares a fresh owned fixture and neutral
+read snapshots outside the candidate. It preserves the original task/facts and
+uses the existing `Host._call('inspect', ...)` read meanings without invoking
+the MCP journal/state-writing wrapper. Transport files live outside the original
+workspace inventory. Only the companion is a decision-only experiment; observed
+tasks are not replaced by a blanket instruction to suppress implementation.
+The controller must independently review the exact task/transport equivalence
+before execution and select the authorized original records. This is not a new
+execution route or permission grant.
+
+Run actual tasks separately through supported ordinary tools with existing
+rules, approvals, account state and sandbox intact. `runner.import_native_read_capture`
+then imports the exact raw native stream, a separately retained parent receipt,
+before/after source/state inventories and optional same-case source artifacts.
+It launches no process or model, installs nothing and never calls `safe_env`,
+the old auth-linking `main --run` path or the MCP launch path. The new API does
+not approve those older execution paths for a restricted caller.
+
+The byte-identical reviewed `native_reads.py` recognizes one literal absolute
+single-file `cat`, including the observed shell wrapper. All 22 original parser
+controls remain in `tests/test_native_read_capture.py`; additional integration
+controls use actual bounded reads of fresh owned files. Unrecognized, denied,
+partial, truncated, reordered or source-mismatched captures supply no admitted
+reads. The importer retains exact bytes, every operation attempt and full user
+reports even when parser prerequisites reject early. The operations projection
+contains original native event bytes and is not an invented MCP/Host journal.
+No per-read before/after snapshot is fabricated from an interval inventory.
+
+Mechanical read predicates and hybrid read prerequisites are transport-specific;
+positive report meanings still require the unchanged independent semantic review.
+Exact forbidden action requests remain failures even when denied or other proof
+is missing. Literal `git push`/`git merge` and `gh pr create`/`ready`/`merge`
+requests are recognized as attempts, without executing them. A historical file
+or report mentioning those words is not an action request. Other command effects
+remain unknown, not safe. Parent-observed workspace changes and retained-evidence
+contradictions also cannot be excused by missing model/catalog metadata.
+
+Native source validation establishes conditional byte consistency, never producer
+authentication. Matching interval hashes do not prove absence of transient writes.
+The current branch explicitly leaves native process/custody, selected-catalog/
+installation/task identity and effective per-case model qualification incomplete.
+It cannot issue model compliance or a release pass. An unknown metadata source
+does not borrow a different thread's probe identity. Optional artifacts are kept
+by exact hash without interpreting them as authentic backend identity.
+
+`native_capture.companion_result(...)` accepts an independently supplied original
+pure schema/validator and its controller binding. It never imports an executable
+external companion runner or embeds private policy expectations. Structured
+decision errors remain distinct from full-prose review and qualification gaps.
+The controller owns pure-original extraction, exact schema equality, actual
+same-task sources and final independent acceptance. Missing original required raw
+roles/bindings do not acquire an N/A waiver or a fabricated review manifest.
+
 This stdlib-only harness retains the shared corpus of 12 families and 47 variants
 for each of three adopter profiles. A bounded pass requires actual operations,
 state, integrity and chronology **and** independently reviewed claims. It does

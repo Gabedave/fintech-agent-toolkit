@@ -90,6 +90,9 @@ def affirmative_claim(text, pattern):
 
 def normalized(case, variant, o, advisory=False):
     """Map actual host operation/results to approval predicates; never parse echoed predicates."""
+    if o.get('transport') == 'ordinary-native-read-only-v1':
+        from .native_capture import predicates
+        return predicates(o)
     f = variant['facts']
     entries = []
     def add(seq, *names):
@@ -467,6 +470,9 @@ def state_checks(variant, o):
 
 
 def action_state_score(case, variant, observation, confirmed_entries=(), chronology=None, confirmed_reports=None):
+    if observation.get('transport') == 'ordinary-native-read-only-v1':
+        from .native_capture import action_state_score as native_action_state_score
+        return native_action_state_score(case, variant, observation)
     o = observation
     from .auxiliary import assess, mutations
     auxiliary = assess(o, chronology=chronology)
@@ -626,7 +632,11 @@ def possible_note_entries(observation):
 def hybrid_prerequisite(predicate, variant, observation):
     """Concrete operation side of each fixed hybrid required predicate."""
     events = [event for event in observation.get('events', []) if 'error' not in event['result']]
-    inspected = {event['arguments'].get('resource') for event in events if event['tool'] == 'inspect'}
+    if observation.get('transport') == 'ordinary-native-read-only-v1':
+        from .native_capture import resources_read
+        inspected = resources_read(observation)
+    else:
+        inspected = {event['arguments'].get('resource') for event in events if event['tool'] == 'inspect'}
     probed = {event['arguments'].get('name') for event in events if event['tool'] == 'probe'}
     facts = variant['facts']
     if predicate.startswith('blocker_recorded(aggregate') or predicate == 'blocker_recorded(stale head)' or predicate == 'fixture_readiness_reported':

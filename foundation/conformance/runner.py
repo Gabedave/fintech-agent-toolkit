@@ -409,6 +409,12 @@ def final_message(stream):
                      if e.get('type')=='item.completed' and e.get('item',{}).get('type')=='agent_message')
 
 
+def import_native_read_capture(prepared, raw_path, parent_record, output, **sources):
+    """Pure capture-import seam; does not call the MCP or native launch paths."""
+    from .native_capture import import_capture
+    return import_capture(prepared, raw_path, parent_record, output, **sources)
+
+
 def prompt_for(case, variant, profile, implicit=False):
     # NO variant ID, oracle predicate, disposition, state assertion, or control
     # plan reaches the model. Only task facts and the supported native API.
