@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.4",
+  "plugin_version": "0.2.5",
   "marketplace": "gabedave",
   "company": "Gabedave",
   "router": "fintech-mode",
