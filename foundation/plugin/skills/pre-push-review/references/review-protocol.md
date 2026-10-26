@@ -29,7 +29,7 @@ Use `confirmed`, `partial`, `unverified`, or `failed`. A prior run, stale review
 
 Before reporting a command result, reconcile its complete captured output, exit status, test summary and coverage boundary. Warnings can coexist with a later successful summary; report both accurately. An exit code alone cannot establish that tests ran, and a passing existing suite does not establish coverage of a newly identified risk. Truncated or unavailable output leaves the affected claim unverified. Preserve valid defect findings independently of the command's result.
 
-Keep source citations separate from the reason for seeking or foregoing external research. External evidence lists identify externally authored references actually consulted, with their applicable version and provenance. A supplied or cached official reference can qualify; a mere mention or suggested link is not consultation. Repository files, local checks and the rationale that they settle a question belong in local verification or limitations. When outside evidence is unnecessary, record that disposition without adding local rationale as an external citation. Essential outside facts that cannot be verified remain unverified; this categorization does not require unnecessary browsing.
+Cite only external references actually consulted; local files/checks and research rationale belong in local verification/limitations.
 
 ### Changed-boundary proof
 
@@ -56,7 +56,7 @@ Keep the result compact, but always retain:
 - remaining findings, assumptions, and unverified risks;
 - the ADR assessment, reviewer-attempt count, and behavior-changing repair-cycle count.
 
-Keep confirmed and not-applicable items to one concise row or sentence each. Expand failed, partial, or unverified evidence and every blocker. Low- and medium-risk reviews may combine common fields into a concise record. High-risk reviews and reviews that repaired a blocker must show the invariant and reconciliation entries explicitly. During reconciliation, restate only changed evidence and dispositions plus the current snapshot identity; do not repeat unchanged record fields.
+Use one concise row/sentence per confirmed or not-applicable item; expand failed, partial or unverified evidence and blockers. Low/medium-risk reviews may combine common fields. High-risk or blocker-repair reviews must show invariants and reconciliation. Restate only changed evidence/dispositions and current snapshot identity during reconciliation.
 
 Report `INDEPENDENT REVIEW: PERFORMED` only for a context-isolated reviewer; otherwise report `INDEPENDENT REVIEW: NOT PERFORMED`. The current context-isolated reviewer counts as an attempt even when it must not delegate a replacement reviewer. On an initial pass, report `CONSENSUS: ACHIEVED` only for a ready candidate without unresolved blockers, `CONSENSUS: NOT ACHIEVED` for a blocking or incomplete result, and `CONSENSUS: HUMAN DECISION REQUIRED` only for an actual product-intent or risk-tolerance dispute. End with exactly one of `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.
 

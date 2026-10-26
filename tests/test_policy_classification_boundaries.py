@@ -40,7 +40,10 @@ class PolicyClassificationBoundaries(unittest.TestCase):
         self.assertIn("finish the assessment before changing production code", text)
 
     def test_external_citations_do_not_hold_local_research_rationale(self):
-        text = instruction("pre-push-review/references/review-protocol.md")
+        common = instruction("pre-push-review/references/review-protocol.md")
+        self.assertIn("Cite only external references actually consulted", common)
+        self.assertIn("local files/checks and research rationale belong in local verification/limitations", common)
+        text = common + " " + instruction("pre-push-review/references/external-evidence.md")
         for clause in ("Keep source citations separate from the reason",
                        "Repository files, local checks and the rationale",
                        "belong in local verification or limitations",
@@ -48,7 +51,8 @@ class PolicyClassificationBoundaries(unittest.TestCase):
             self.assertIn(clause, text)
 
     def test_external_evidence_requires_actual_consultation_not_live_network(self):
-        text = instruction("pre-push-review/references/review-protocol.md")
+        text = (instruction("pre-push-review/references/review-protocol.md") + " "
+                + instruction("pre-push-review/references/external-evidence.md"))
         for clause in ("externally authored references actually consulted",
                        "supplied or cached official reference", "applicable version and provenance",
                        "mere mention or suggested link is not consultation",
