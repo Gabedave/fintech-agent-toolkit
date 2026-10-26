@@ -29,6 +29,8 @@ Use `confirmed`, `partial`, `unverified`, or `failed`. A prior run, stale review
 
 Before reporting a command result, reconcile its complete captured output, exit status, test summary and coverage boundary. Warnings can coexist with a later successful summary; report both accurately. An exit code alone cannot establish that tests ran, and a passing existing suite does not establish coverage of a newly identified risk. Truncated or unavailable output leaves the affected claim unverified. Preserve valid defect findings independently of the command's result.
 
+Keep source citations separate from the reason for seeking or foregoing external research. External evidence lists identify externally authored references actually consulted, with their applicable version and provenance. A supplied or cached official reference can qualify; a mere mention or suggested link is not consultation. Repository files, local checks and the rationale that they settle a question belong in local verification or limitations. When outside evidence is unnecessary, record that disposition without adding local rationale as an external citation. Essential outside facts that cannot be verified remain unverified; this categorization does not require unnecessary browsing.
+
 ### Changed-boundary proof
 
 Derive relevant risks from the requirements and source before choosing tests. Repository maps are an execution index, not the ceiling of the review. Reuse their commands, but inspect whether the selected cases actually cross the changed boundary. A test file being mapped or a large passing test count does not establish that.
