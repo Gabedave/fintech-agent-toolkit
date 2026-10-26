@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "787ecc6f1e2262447554992fca1373d6a1cb8d6c",
+  "source_commit": "b30cfab20b42e5da0c3b261217ce1777fddca8f5",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.3",
+  "plugin_version": "0.2.4",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.3",
-    "commit": "787ecc6f1e2262447554992fca1373d6a1cb8d6c",
-    "digest": "c5845eb05d95ff93cef4a29472c21d69c2c3b502aea1437888e8d6086ffcc85d"
+    "version": "1.0.4",
+    "commit": "b30cfab20b42e5da0c3b261217ce1777fddca8f5",
+    "digest": "222ecdf9b314adc7a0eceea85edac924d9d6846407648b42a5e61e88756ccf7d"
   },
   "adapter_revision": "1.0.2",
-  "profile_digest": "f14b12ed581037866978de4726a04d306712fae4bb29d25316145d1cf6d8415f",
+  "profile_digest": "f9e1d4a8d03e554652c45c898e1305333202a53f0dbc4154380316956674477c",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "ffe19483bb37f3eced5a202e0c14f4182ff6a3f105c594cd64d7abc56c14c08a",
+      "sha256": "80bbd0151ffc785c063aa6937757c0e4d88b02469066d7af40b58a944b103147",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -82,7 +82,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/references/implementation-readiness.md": {
-      "sha256": "df63e177d0fef20cc8b525d918bc5c546171b87d26fca84d6d0e238abef1b704",
+      "sha256": "6e8a2b373726f1ecce16cd27ecd4bbd8c1074aebd2b2031f76aac18d7a396e92",
       "mode": "0644"
     },
     "skills/fintech-mode/references/playbooks.md": {
@@ -142,7 +142,7 @@
       "mode": "0644"
     },
     "skills/pre-push-review/references/review-protocol.md": {
-      "sha256": "6afe061155c74bee94a6354a32904d72d0814903f10159a0de39254a238df3aa",
+      "sha256": "ecbbb7a11d92dcf9256716d2679aff26bd3f8e939c39b7c14770dd777d5e3ec2",
       "mode": "0644"
     },
     "skills/reflect/SKILL.md": {
@@ -182,5 +182,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "3dc09e906114fafd70122e293b7916c1b6c2d8df9e0e6fdd77eb6bd8b2f7a5bc"
+  "content_digest": "03841da8d8366f24bd341b85dea3e9209bac7ddc1329175a29bf1bef043470dc"
 }

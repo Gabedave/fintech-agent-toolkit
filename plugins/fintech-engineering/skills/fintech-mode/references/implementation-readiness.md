@@ -23,6 +23,11 @@ money boundary does not itself establish a growth exposure: an ownership-only re
 resource effect established remains `assess-before-edit`, while fixing indefinite completed-job
 retention requires a bound even when correctness risk is standard.
 
+Separate open assessment questions from established obligations. When resource exposure is unresolved,
+state what discovery must determine; do not present material-growth requirements as already applicable.
+Establish those requirements only after evidence supports a material-growth classification.
+Correctness risk does not determine resource exposure; finish the assessment before production edits.
+
 For material growth, state the expected and peak workload; the per-operation or retained-state ceiling;
 concurrency and replica effects; cleanup or expiry; safe behaviour at the ceiling; and the repository-owned
 check plus aggregate production signal that will distinguish healthy operation from exhaustion. Make the
