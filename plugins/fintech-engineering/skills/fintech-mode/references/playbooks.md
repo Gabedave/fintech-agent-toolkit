@@ -6,9 +6,13 @@ Apply the company delivery policy before selecting delivery stages. Default deli
 
 Pair a non-trivial production repository-editing playbook with pull-request preparation and select `$ci-babysit` only when the company policy and user authorize publication and follow-through. A CI-only restriction leaves otherwise authorized pull-request delivery intact; a withheld commit or push also blocks downstream PR delivery that would require those unpublished commits. Never invent an empty or stale PR to preserve a downstream stage. Throwaway prototypes stay local unless the user separately asks to retain or publish them. Selecting delivery stages does not add the CI-failure playbook unless a failure must be diagnosed or repaired, and never grants merge or deploy authority.
 
+Assess pull-request lifecycle applicability separately from general action permissions. When no pull request exists or is planned and the requested outcome has no pull-request delivery lifecycle, there is no such lifecycle to report; general merge/deployment prohibitions still apply. An existing or planned pull request retains the router's merge-authorization boundary even when execution is withheld.
+
 ## None — proportional trivial task
 
 Use no shared playbook when the task is a small mechanical edit with an obvious boundary and direct proof. Make the requested scoped change, run the closest direct check, review the diff, and stop at the user's authorization boundary. Do not invoke `fintech-mode` or supporting skills merely to manufacture process.
+
+Keep implementation-readiness applicability consistent throughout the working report; do not partially activate the non-trivial contract for this path. If scope is uncertain, complete discovery; if it reveals non-trivial or high-risk work, reselect the applicable workflow before editing. A task label alone does not establish mechanical scope.
 
 ## Investigation
 
