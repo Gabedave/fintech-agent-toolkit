@@ -15,7 +15,7 @@ Treat repository verification as maintained product infrastructure. During a ver
 4. Check for important current behaviour with no feature mapping and for mapped proof claims that no longer exercise their stated boundary.
 5. Capture privacy-safe evidence and clean up processes, containers, simulator state, traces, and temporary identities started by the audit.
 
-Read [references/lifecycle.md](references/lifecycle.md) for the required verifier contract and result classification.
+Read [references/lifecycle.md](references/lifecycle.md) for the required verifier contract and result classification. For persistence, replay, ownership or fencing changes, complete its storage proof plan. In audit/planning-only tasks, propose the concrete setup and observations without launching services, editing files or claiming executed proof.
 
 ## Repair honestly
 

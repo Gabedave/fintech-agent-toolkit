@@ -5,6 +5,7 @@ Use the smallest structure that makes the system understandable:
 - **Overview:** the observable purpose and authoritative boundary.
 - **Key concepts:** domain entities, states, ownership, and important data shapes.
 - **Runtime path:** ordered calls and state transitions from entry point to outcome.
+- **Outcomes:** explain domain labels using the supplied contract, including whether they mean final success, terminal failure, pending work or human review. A helper name or transport success alone does not establish a final product outcome.
 - **Where:** the source, tests, configuration, jobs, and operational surfaces that establish the model.
 - **Failure and recovery:** validation, authorization, retry, timeout, concurrency, rollback, and cleanup where relevant.
 - **Gotchas:** non-obvious constraints supported by evidence.
