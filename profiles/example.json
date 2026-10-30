@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "plugin_name": "harbor-engineering",
-  "plugin_version": "0.1.8",
+  "plugin_version": "0.1.9",
   "marketplace": "harbor-example",
   "company": "Harbor Example",
   "router": "harbor-mode",
