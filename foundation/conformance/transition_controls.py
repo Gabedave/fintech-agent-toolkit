@@ -950,6 +950,7 @@ def construction_diagnostics(root, process_override=None):
         'launch': 'sensitivity-effect-launch.json', 'config': 'host-config.json',
     }.items()}
     paths.update(phases=root / 'phases.jsonl', process=root / 'synthetic-process.json',
+                 public_result=root / 'actual-run/result.json',
                  producer=root / 'producer.py', observation=root / 'actual-run/observation.json')
     artifacts = {}
     for name, path in paths.items():
@@ -1035,6 +1036,8 @@ def _capture_control(spec, root):
     from . import runner
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
+    if (root / 'phases.jsonl').exists():
+        raise ValueError('fixture requires fresh readiness state')
     ident = spec['id']
     implicit = ident.startswith('I-')
     profile = {'plugin_name': 'synthetic-workflow', 'router': 'workflow'}
@@ -1050,7 +1053,7 @@ def _capture_control(spec, root):
     ci, vi = (11, 0) if implicit else (7, 0) if ident.startswith('F-partial') and 'known-prefix' not in ident and ('proper-write' not in ident) else (0, 0)
     case = load_cases()['cases'][ci]
     variant = case['variants'][vi]
-    args = SimpleNamespace(candidate=str(candidate), profile=str(pf), model=None, timeout_seconds=2, installation_completed_ns=1, candidate_revision='synthetic-revision', contract_binding='unverified', codex_config_sha256='synthetic-config', effective_model='synthetic-local-producer', profile_role='synthetic-adopter', fixtures=None)
+    args = SimpleNamespace(candidate=str(candidate), profile=str(pf), model=None, timeout_seconds=5, installation_completed_ns=1, candidate_revision='synthetic-revision', contract_binding='unverified', codex_config_sha256='synthetic-config', effective_model='synthetic-local-producer', profile_role='synthetic-adopter', fixtures=None)
     real_stream = runner.stream_process
     script = root / 'producer.py'
     program = """import copy, json, pathlib, sys, time
@@ -1122,10 +1125,26 @@ if 'never-read-complete' in ident:
     emit({'type': 'item.completed', 'item': {'type': 'agent_message', 'phase': 'final_answer', 'text': 'The synthetic task is complete without an invocation claim.'}})
     emit({'type': 'turn.completed'})
 else:
+    _fixture_phase('interruption-ready')
     time.sleep(30)
 """
     script.write_text(program)
     source = str(Path(__file__).resolve().parents[2])
+    transport_result = {}
+
+    def at_original_hold():
+        try:
+            lines = (root / 'phases.jsonl').read_text().splitlines()
+        except FileNotFoundError:
+            return False
+        for line in lines:
+            try:
+                phase = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(phase, dict) and phase.get('phase') == 'interruption-ready':
+                return True
+        return False
 
     def transport(command, env, cwd, output, timeout, prompt=None):
         config = Path(output) / 'host-config.json'
@@ -1135,16 +1154,17 @@ else:
         from .source_binding import prepare_sensitivity_launch
         executed = [sys.executable, str(script), source, str(config), mode, '--json']
         launch = prepare_sensitivity_launch(output, executed, script, sha256(script.read_bytes()))
-        # Use the declared finite synthetic budget, including child startup,
-        # imports and real Host work. The old hidden 0.7-second override raced startup.
-        # This does not change any native/model timeout or capture rule.
+        # Capture from launch. The ready signal only shortens the fixed outer
+        # watchdog after the original Host operations reach their hold point.
         with (Path(output) / 'synthetic-stdout.bin').open('wb') as stdout_raw, (Path(output) / 'synthetic-stderr.bin').open('wb') as stderr_raw:
             sinks = {'stdout': stdout_raw, 'stderr': stderr_raw}
             def retain(name, chunk):
                 sinks[name].write(chunk)
                 sinks[name].flush()
             raw = real_stream(executed, env, cwd, output, args.timeout_seconds,
-                              source_launch=launch, synthetic_raw_sink=retain)
+                              source_launch=launch, synthetic_raw_sink=retain,
+                              synthetic_ready=at_original_hold, synthetic_ready_timeout=0.1)
+        transport_result.update(raw)
         save(root / 'synthetic-process.json', raw)
         if 'unknown-location' in ident:
             raw.pop('capture_sha256', None)
@@ -1180,6 +1200,14 @@ else:
     observed = json.loads((root / 'actual-run/observation.json').read_text())
     captured_stream = [json.loads(line) for line in Path(observed['observer_paths']['stdout']).read_text().splitlines()]
     assert any((event.get('type') == 'item.completed' and event.get('item', {}).get('type') == 'mcp_tool_call' and (event['item'].get('result') is not None) for event in captured_stream)), 'fixture did not execute actual host operations'
+    if 'never-read-complete' not in ident:
+        assert (observed['process']['timed_out']
+                and transport_result['synthetic_coordination']['ready_observed']), 'fixture did not reach its controlled interruption boundary'
+        phases = [json.loads(line) for line in (root / 'phases.jsonl').read_text().splitlines()]
+        ready = [phase for phase in phases if phase.get('phase') == 'interruption-ready']
+        completed = [phase for phase in phases if phase.get('phase') == 'host-completed']
+        assert (len(ready) == 1 and phases[-1] == ready[0] and completed
+                and all(phase['ns'] < ready[0]['ns'] for phase in completed)), 'readiness did not follow the original Host work'
     if ident == 'P-established-event-tamper':
         run = root / 'actual-run'
         o = json.loads((run / 'observation.json').read_text())

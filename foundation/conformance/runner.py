@@ -71,7 +71,8 @@ def safe_env(home):
 
 
 def stream_process(command, env, cwd, output, timeout, prompt=None, source_launch=None,
-                   synthetic_raw_sink=None):
+                   synthetic_raw_sink=None, synthetic_ready=None,
+                   synthetic_ready_timeout=0.1):
     """Drain both pipes continuously and always kill the complete process group."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -81,10 +82,17 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
     source_purpose = json.loads(launch_path.read_bytes()).get('purpose') if source_reference else None
     # Only source-bound, credential-free synthetic controls may retain raw
     # diagnostics. Native/model callers keep the default discard policy.
-    if synthetic_raw_sink is not None and (source_purpose != 'controlled-sensitivity'
-                                           or not callable(synthetic_raw_sink)):
+    controlled_options = synthetic_raw_sink is not None or synthetic_ready is not None
+    if controlled_options and source_purpose != 'controlled-sensitivity':
         raise ValueError('raw diagnostic sink requires controlled-sensitivity source purpose')
-    if synthetic_raw_sink is not None:
+    if synthetic_raw_sink is not None and not callable(synthetic_raw_sink):
+        raise ValueError('synthetic raw sink must be callable')
+    if synthetic_ready is not None:
+        if (not callable(synthetic_ready)
+                or any(type(value) not in (int, float) or not 0 < value < float('inf')
+                       for value in (timeout, synthetic_ready_timeout))):
+            raise ValueError('synthetic readiness requires a callback and finite positive budgets')
+    if controlled_options:
         from .source_binding import _read as read_source_record
         launch = json.loads(launch_path.read_bytes())
         if (launch['executed_command'] != list(command) or len(command) < 2
@@ -115,7 +123,20 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
     capture_gaps = []
     retained_lines = 0
     discarding_stdout_line = False
-    deadline = time.monotonic() + timeout
+    # Native/default callers retain their original timeout. Controlled fixtures
+    # may shorten a launch-anchored watchdog once their actual hold is ready.
+    outer_deadline = (started_at_ns / 1e9 + timeout if synthetic_ready is not None
+                      else time.monotonic() + timeout)
+    deadline = outer_deadline
+    ready_observed_at_ns = None
+    def coordination_record():
+        return {'ready_observed': ready_observed_at_ns is not None,
+                'ready_observed_at_ns': ready_observed_at_ns,
+                'outer_watchdog_seconds': timeout,
+                'after_ready_seconds': synthetic_ready_timeout,
+                'outer_deadline_ns': started_at_ns + int(timeout * 1e9),
+                'interruption_trigger': ('ready-window' if deadline_before_stop < outer_deadline else 'outer-watchdog') if timed_out else None}
+    deadline_before_stop = deadline
     json_mode = '--json' in command
     def consume(name, line):
         nonlocal retained_lines
@@ -189,11 +210,21 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         p.wait(timeout=5)
     try:
         while selector.get_map():
+            if (synthetic_ready is not None and ready_observed_at_ns is None
+                    and not timed_out and time.monotonic() < outer_deadline):
+                ready = synthetic_ready()
+                if type(ready) is not bool:
+                    raise ValueError('synthetic readiness callback must return bool')
+                if ready and time.monotonic() < outer_deadline:
+                    ready_observed_at_ns = time.monotonic_ns()
+                    deadline = min(outer_deadline, ready_observed_at_ns / 1e9 + synthetic_ready_timeout)
             if time.monotonic() > deadline:
                 timed_out = True
+                deadline_before_stop = deadline
                 stop()
                 deadline = float('inf')
-            for key, _ in selector.select(timeout=0.2):
+            wait = min(0.2, max(0, deadline-time.monotonic())) if synthetic_ready is not None else 0.2
+            for key, _ in selector.select(timeout=wait):
                 chunk = os.read(key.fileobj.fileno(), 65536)
                 if not chunk:
                     selector.unregister(key.fileobj)
@@ -226,12 +257,14 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         p.wait(timeout=5)
     except BaseException as error:
         stop()
-        if synthetic_raw_sink is not None and isinstance(error, Exception):
+        if controlled_options and isinstance(error, Exception):
             # Preserve the observed outcome even if the synthetic sink itself
             # fails, without changing native/default exception behavior.
             error.synthetic_process = {'pid': p.pid, 'started_at_ns': started_at_ns,
                                        'exit': p.returncode, 'timed_out': timed_out,
                                        'raw_sha256': {name: value.hexdigest() for name, value in raw_hashes.items()}}
+            if synthetic_ready is not None:
+                error.synthetic_process['synthetic_coordination'] = coordination_record()
         raise
     finally:
         if p.poll() is None:
@@ -258,6 +291,8 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         'non_json_stdout_retained': synthetic_raw_sink is not None,
         'raw_stderr_retained': synthetic_raw_sink is not None
     }
+    if synthetic_ready is not None:
+        diagnostics['synthetic_coordination'] = coordination_record()
     (output / 'diagnostics.json').write_text(json.dumps(diagnostics, indent=2))
     capture = {'producer': 'pipe-capture-v1', 'source': 'stdout.jsonl',
                'process_started_at_ns': started_at_ns, 'from_process_start': True,
@@ -269,7 +304,7 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
                'source_launch': source_reference,
                'producer_run_dir':str(output.resolve().parent)}
     (output / 'capture.json').write_text(json.dumps(capture, indent=2, sort_keys=True))
-    return {
+    result = {
         'command': command,
         'source_launch': source_reference,
         'source_purpose': source_purpose,
@@ -283,6 +318,9 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         'capture_gaps': capture_gaps,
         'capture_sha256': digest(output / 'capture.json')
     }
+    if synthetic_ready is not None:
+        result['synthetic_coordination'] = coordination_record()
+    return result
 
 
 def complete_probe(probe):

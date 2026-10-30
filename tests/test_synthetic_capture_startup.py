@@ -119,7 +119,7 @@ class SyntheticCaptureStartupTests(unittest.TestCase):
                 detail = result['diagnostics']
                 self.assertTrue(detail['artifacts']['journal']['text'])
                 self.assertIn('mcp_tool_call', detail['artifacts']['stdout']['text'])
-                self.assertEqual(['entered', 'host-imported', 'host-completed', 'host-completed'], [p['phase'] for p in detail['phases']])
+                self.assertEqual(['entered', 'host-imported', 'host-completed', 'host-completed', 'interruption-ready'], [p['phase'] for p in detail['phases']])
 
     def test_corrupt_auxiliary_cannot_replace_original_construction_error(self):
         for body in ('{', '[]', '{"diagnostics":[]}', '{"diagnostics":{"raw_sha256":[]}}'):
@@ -147,6 +147,8 @@ class SyntheticCaptureStartupTests(unittest.TestCase):
             self.assertEqual(0, result['exit'])
             self.assertFalse(result['diagnostics']['raw_stderr_retained'])
             self.assertFalse(result['diagnostics']['non_json_stdout_retained'])
+            self.assertNotIn('synthetic_coordination', result)
+            self.assertNotIn('synthetic_coordination', result['diagnostics'])
             self.assertEqual(hashlib.sha256(b'synthetic diagnostic\n').hexdigest(), result['diagnostics']['raw_sha256']['stderr'])
             self.assertFalse((root/'out/synthetic-stderr.bin').exists())
 
@@ -165,10 +167,12 @@ class SyntheticCaptureStartupTests(unittest.TestCase):
                         'executed_command':['different'] if mode=='command' else command,
                         'producer_path':str(producer),'producer':record,
                         'expected_producer_sha256':'0'*64 if mode=='producer' else good_hash}))
-                    with patch.object(subprocess, 'Popen') as popen:
-                        with self.assertRaises(ValueError):
-                            runner.stream_process(command, {}, root, root, 2, source_launch=launch, synthetic_raw_sink=lambda name, chunk: None)
-                        popen.assert_not_called()
+                    for options in ({'synthetic_raw_sink':lambda name, chunk: None},
+                                    {'synthetic_ready':lambda: True}):
+                        with patch.object(subprocess, 'Popen') as popen:
+                            with self.assertRaises(ValueError):
+                                runner.stream_process(command, {}, root, root, 2, source_launch=launch, **options)
+                            popen.assert_not_called()
 
 
 if __name__ == '__main__':
