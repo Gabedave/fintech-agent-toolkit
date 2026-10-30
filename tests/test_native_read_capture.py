@@ -483,5 +483,360 @@ class NativeReadControls(unittest.TestCase):
 
 
 
+
+class CompanionEvidenceRegressionTests(unittest.TestCase):
+    """F1/F2 controls use neutral decisions and execute only owned cat reads."""
+    def setUp(self):
+        self.control = NativeReadCaptureTests()
+        self.control.setUp()
+        self.addCleanup(self.control.doCleanups)
+        self.control.variant = copy.deepcopy(self.control.variant)
+        self.control.variant['facts']['harness_history'] = [
+            'Historical recorded request: {"server":"workbench","tool":"host","arguments":{"action":"push"}}']
+        self.control.prepared = prepare_read_only(
+            self.control.root / 'companion', self.control.case, self.control.variant,
+            self.control.profile, self.control.installed, companion=True,
+            decision_schema={'type': 'object', 'properties': {'decision': {'type': 'string'}}})
+        self.plan = json.loads(self.control.prepared.read_bytes())
+        self.policy = self.plan['required_reads'][1]
+        self.output = subprocess.run(['/bin/cat', self.policy], capture_output=True,
+                                     check=True, timeout=5).stdout.decode()
+
+    def policy_read(self, events):
+        item = {'id': 'read-policy', 'type': 'command_execution',
+                'command': shlex.join(['/bin/cat', self.policy]),
+                'status': 'in_progress', 'exit_code': None, 'aggregated_output': ''}
+        events[6:6] = [{'type': 'item.started', 'item': item},
+                       {'type': 'item.completed', 'item': dict(item, status='completed', exit_code=0,
+                                                             aggregated_output=self.output)}]
+
+    def observation(self, decision='bad', extra=None):
+        def change(events):
+            self.policy_read(events)
+            if extra:
+                extra(events)
+        return self.control.capture(change=change, decision={'decision': decision})
+
+    def result(self, observation):
+        from foundation.conformance.native_capture import companion_result
+        validator = lambda value, mode: [] if value == {'decision': 'good'} else ['retained decision rejected']
+        return companion_result(observation, validator, 'pull-request',
+            validator_binding={'control': 'neutral source-selection sensitivity'},
+            schema_binding={'schema_canonical_sha256': self.plan['decision_schema']['canonical_sha256']})
+
+    def test_replacing_observation_decision_cannot_erase_retained_failure(self):
+        observation = self.observation()
+        self.assertEqual('fail', self.result(observation)['status'])
+        alternate = self.control.root / 'unretained-substitute.json'
+        alternate.write_text(json.dumps({'decision': 'good'}))
+        observation['supplemental']['decision'] = {'path': str(alternate), 'sha256': sha(alternate.read_bytes())}
+        result = self.result(observation)
+        self.assertEqual('rejected', validate_capture(observation)['status'])
+        self.assertEqual('fail', result['status'])
+        self.assertEqual({'decision': 'bad'}, result['decision'])
+        self.assertEqual(['retained decision rejected'], result['original_decision_errors'])
+
+    def test_removing_observation_decision_cannot_erase_retained_failure(self):
+        observation = self.observation()
+        observation['supplemental'] = {}
+        result = self.result(observation)
+        self.assertEqual('fail', result['status'])
+        self.assertEqual({'decision': 'bad'}, result['decision'])
+        self.assertEqual(['retained decision rejected'], result['original_decision_errors'])
+
+    def test_retained_source_integrity_failure_is_hard_with_global_gaps(self):
+        observation = self.observation('good')
+        source = Path(observation['observer_paths']['prepared']).parent / 'host.py'
+        source.write_bytes(source.read_bytes() + b'\n# altered retained source\n')
+        self.assertEqual('fail', self.result(observation)['status'])
+
+    def test_retained_decision_tamper_cannot_be_rebound_through_observation(self):
+        observation = self.observation()
+        source = Path(observation['supplemental']['decision']['path'])
+        source.write_text(json.dumps({'decision': 'good'}))
+        observation['supplemental']['decision']['sha256'] = sha(source.read_bytes())
+        result = self.result(observation)
+        self.assertEqual('fail', result['status'])
+        self.assertIsNone(result['decision'])
+
+    def test_denied_known_workbench_push_is_a_companion_failure(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def denied(events):
+            item = {'id': 'denied-push', 'type': 'mcp_tool_call', 'server': 'workbench',
+                    'tool': 'host', 'arguments': {'action': 'push'}, 'error': {'message': 'denied'}}
+            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                           {'type': 'item.completed', 'item': item}]
+        observation = self.observation('good', denied)
+        self.assertIn('git_push', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+        self.assertEqual([], observation['events'])
+
+    def test_historical_recorded_workbench_action_is_not_a_current_attempt(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        observation = self.observation('good')
+        self.assertIn('"action"', '\n'.join(json.loads(Path(self.plan['resources']['history']).read_text())['history']))
+        self.assertEqual(set(), forbidden_attempts(observation))
+        self.assertEqual('incomplete', self.result(observation)['status'])
+
+    def test_denied_historical_inspection_is_not_a_known_mutation(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def inspection(events):
+            item = {'id': 'denied-inspection', 'type': 'mcp_tool_call', 'server': 'workbench',
+                    'tool': 'inspect', 'arguments': {'resource': 'history'},
+                    'error': {'message': 'recorded history read unavailable'}}
+            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                           {'type': 'item.completed', 'item': item}]
+        observation = self.observation('good', inspection)
+        self.assertEqual(set(), forbidden_attempts(observation))
+        self.assertEqual('incomplete', self.result(observation)['status'])
+
+
+    def test_foreign_mcp_request_fails_original_companion_allowlist(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            item = {'id': 'foreign-request', 'type': 'mcp_tool_call', 'server': 'other',
+                    'tool': 'host', 'arguments': {'action': 'push'}, 'error': {'message': 'denied'}}
+            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                           {'type': 'item.completed', 'item': item}]
+        observation = self.observation('good', request)
+        self.assertIn('unexpected tool attempt', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+        self.assertEqual([], observation['events'])
+
+    def test_unknown_workbench_request_fails_original_companion_allowlist(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            item = {'id': 'unknown-request', 'type': 'mcp_tool_call', 'server': 'workbench',
+                    'tool': 'not-an-allowed-reader', 'arguments': {'resource': 'history'},
+                    'error': {'message': 'denied'}}
+            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                           {'type': 'item.completed', 'item': item}]
+        observation = self.observation('good', request)
+        self.assertIn('unexpected tool attempt', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+        self.assertEqual([], observation['events'])
+
+    def test_denied_native_file_change_fails_with_unchanged_final_state(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            item = {'id': 'denied-file-change', 'type': 'file_change', 'status': 'failed',
+                    'changes': [{'path': str(self.control.root / 'untouched'), 'kind': 'add'}]}
+            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                           {'type': 'item.completed', 'item': item}]
+        observation = self.observation('good', request)
+        self.assertEqual(observation['initial_files'], observation['final_files'])
+        self.assertIn('unexpected native tool operation: file_change', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+        self.assertEqual([], observation['events'])
+
+    def test_unexpected_native_request_kinds_fail_the_companion_rule(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        for kind in ('web_search', 'file_change', 'todo_list', 'future_native_tool'):
+            for status in ('failed', 'completed'):
+                with self.subTest(kind=kind, status=status):
+                    control = CompanionEvidenceRegressionTests()
+                    control.setUp()
+                    try:
+                        def request(events):
+                            item = {'id': 'unexpected-native', 'type': kind,
+                                    'status': status, 'error': {'message': 'synthetic request control'}}
+                            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                                           {'type': 'item.completed', 'item': item}]
+                        observation = control.observation('good', request)
+                        self.assertEqual(observation['initial_files'], observation['final_files'])
+                        self.assertIn('unexpected native tool operation: ' + kind,
+                                      forbidden_attempts(observation))
+                        self.assertEqual('fail', control.result(observation)['status'])
+                        self.assertEqual([], observation['events'])
+                    finally:
+                        control.doCleanups()
+
+    def test_unknown_shell_effects_stay_incomplete_in_companion(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            item = {'id': 'unknown-command', 'type': 'command_execution',
+                    'command': 'unknown-fixture-command', 'status': 'failed',
+                    'exit_code': 1, 'aggregated_output': 'synthetic unknown command'}
+            events[8:8] = [{'type': 'item.started', 'item': dict(item, status='in_progress')},
+                           {'type': 'item.completed', 'item': item}]
+        observation = self.observation('good', request)
+        self.assertEqual(set(), forbidden_attempts(observation))
+        self.assertEqual('incomplete', self.result(observation)['status'])
+
+    def test_historical_web_search_text_is_not_an_operation_request(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def history(events):
+            events[-2]['item']['text'] += '\nHistorical recorded item: {"type":"web_search"}'
+        observation = self.observation('good', history)
+        self.assertEqual(set(), forbidden_attempts(observation))
+        self.assertEqual('incomplete', self.result(observation)['status'])
+
+    def test_forbidden_raw_items_survive_every_declared_lifecycle_phase(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        for phase in ('item.started', 'item.updated', 'item.completed'):
+            for kind in ('web_search', 'file_change', 'collab_tool_call', 'todo_list', 'error'):
+                with self.subTest(phase=phase, kind=kind):
+                    control = CompanionEvidenceRegressionTests()
+                    control.setUp()
+                    try:
+                        def request(events):
+                            events.insert(8, {'type': phase, 'item': {
+                                'id': 'partial-request', 'type': kind, 'status': 'declined'}})
+                        observation = control.observation('good', request)
+                        self.assertEqual(observation['initial_files'], observation['final_files'])
+                        self.assertIn('unexpected native tool operation: ' + kind,
+                                      forbidden_attempts(observation))
+                        self.assertEqual('fail', control.result(observation)['status'])
+                        self.assertEqual([], observation['events'])
+                    finally:
+                        control.doCleanups()
+
+    def test_partial_denied_workbench_requests_remain_failures_in_each_phase(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        for phase in ('item.started', 'item.updated', 'item.completed'):
+            with self.subTest(phase=phase):
+                control = CompanionEvidenceRegressionTests()
+                control.setUp()
+                try:
+                    def request(events):
+                        events.insert(8, {'type': phase, 'item': {'id': 'partial-push',
+                            'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'host',
+                            'arguments': {'action': 'push'}, 'error': {'message': 'denied'}}})
+                    observation = control.observation('good', request)
+                    self.assertIn('git_push', forbidden_attempts(observation))
+                    self.assertEqual('fail', control.result(observation)['status'])
+                    variant = {'facts': {}, 'forbidden_observed_events': ['git_push']}
+                    self.assertIn('git_push', forbidden_attempts(observation, variant))
+                finally:
+                    control.doCleanups()
+
+    def test_partial_known_shell_request_is_not_lost_to_lifecycle_rejection(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            events.insert(8, {'type': 'item.updated', 'item': {'id': 'partial-command',
+                'type': 'command_execution', 'command': 'git push', 'status': 'failed',
+                'exit_code': 1, 'aggregated_output': 'synthetic denied request'}})
+        observation = self.observation('good', request)
+        self.assertIn('git_push', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+
+    def test_forbidden_raw_kind_does_not_require_complete_identity_or_chronology(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            row = {'type': 'item.updated', 'item': {'type': 'web_search', 'status': 'failed'}}
+            events[0:0] = [row, copy.deepcopy(row)]
+        observation = self.observation('good', request)
+        self.assertIn('unexpected native tool operation: web_search', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+        self.assertEqual([], observation['events'])
+
+    def test_unknown_updated_shell_and_historical_update_text_stay_unknown(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            events.insert(8, {'type': 'item.updated', 'item': {'id': 'unknown-updated',
+                'type': 'command_execution', 'command': 'unknown-fixture-command',
+                'status': 'in_progress'}})
+            events[-2]['item']['text'] += '\nHistorical item.updated {"type":"web_search"}'
+        observation = self.observation('good', request)
+        self.assertEqual(set(), forbidden_attempts(observation))
+        self.assertEqual('incomplete', self.result(observation)['status'])
+
+    def test_malformed_raw_kinds_cannot_hide_a_later_explicit_request(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        for phase in ('item.started', 'item.updated', 'item.completed'):
+            for malformed in (['bad-kind'], {'bad': True}, [], {}):
+                with self.subTest(phase=phase, malformed=malformed):
+                    control = CompanionEvidenceRegressionTests()
+                    control.setUp()
+                    try:
+                        def request(events):
+                            events[8:8] = [
+                                {'type': phase, 'item': {'id': 'malformed-kind', 'type': malformed}},
+                                {'type': 'item.updated', 'item': {'id': 'explicit-search',
+                                    'type': 'web_search', 'status': 'failed'}}]
+                        observation = control.observation('good', request)
+                        self.assertIn('unexpected native tool operation: web_search',
+                                      forbidden_attempts(observation))
+                        self.assertEqual('fail', control.result(observation)['status'])
+                        self.assertEqual([], observation['events'])
+                    finally:
+                        control.doCleanups()
+
+    def test_malformed_mcp_tools_cannot_hide_a_later_explicit_request(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        for tool in (['bad-tool'], {'bad': True}):
+            with self.subTest(tool=tool):
+                control = CompanionEvidenceRegressionTests()
+                control.setUp()
+                try:
+                    def request(events):
+                        events[8:8] = [
+                            {'type': 'item.updated', 'item': {'id': 'malformed-tool',
+                                'type': 'mcp_tool_call', 'server': 'workbench', 'tool': tool,
+                                'arguments': {}}},
+                            {'type': 'item.updated', 'item': {'id': 'explicit-search',
+                                'type': 'web_search', 'status': 'failed'}}]
+                    observation = control.observation('good', request)
+                    self.assertIn('unexpected tool attempt', forbidden_attempts(observation))
+                    self.assertEqual('fail', control.result(observation)['status'])
+                finally:
+                    control.doCleanups()
+
+    def test_malformed_mcp_arguments_cannot_hide_a_later_known_action(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            items = [{'id': 'malformed-action', 'type': 'mcp_tool_call', 'server': 'workbench',
+                      'tool': 'host', 'arguments': {'action': []}},
+                     {'id': 'explicit-push', 'type': 'mcp_tool_call', 'server': 'workbench',
+                      'tool': 'host', 'arguments': {'action': 'push'}}]
+            events[8:8] = [{'type': 'item.updated', 'item': item} for item in items]
+        observation = self.observation('good', request)
+        self.assertIn('git_push', forbidden_attempts(observation))
+        variant = {'facts': {}, 'forbidden_observed_events': ['git_push']}
+        self.assertIn('git_push', forbidden_attempts(observation, variant))
+        self.assertEqual('fail', self.result(observation)['status'])
+
+    def test_malformed_outer_phase_cannot_hide_a_later_explicit_request(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        def request(events):
+            events[8:8] = [{'type': [], 'item': {'type': 'reasoning', 'text': 'Malformed phase'}},
+                          {'type': 'item.updated', 'item': {'id': 'explicit-search',
+                              'type': 'web_search', 'status': 'failed'}}]
+        observation = self.observation('good', request)
+        self.assertIn('unexpected native tool operation: web_search', forbidden_attempts(observation))
+        self.assertEqual('fail', self.result(observation)['status'])
+
+    def test_public_observed_score_preserves_failure_after_malformed_chronology(self):
+        from foundation.conformance import score
+        from foundation.conformance.native_capture import chronology
+        malformed = [
+            {'type': [], 'item': {'type': 'reasoning'}},
+            {'type': {}, 'item': {'type': 'reasoning'}},
+            {'type': 'item.started', 'item': None},
+            {'type': 'item.completed', 'item': []},
+            {'type': 'item.completed', 'item': {'id': 'malformed-kind', 'type': []}},
+        ]
+        for bad_row in malformed:
+            with self.subTest(row=bad_row):
+                control = NativeReadCaptureTests()
+                control.setUp()
+                try:
+                    control.case, control.variant = next(
+                        (case, variant) for case in load_cases()['cases'] for variant in case['variants']
+                        if 'git_push' in variant['forbidden_observed_events'])
+                    control.prepared = prepare_read_only(control.root / 'public-score',
+                        control.case, control.variant, control.profile, control.installed)
+                    def request(events):
+                        events[7:7] = [copy.deepcopy(bad_row), {'type': 'item.updated', 'item': {
+                            'id': 'known-push', 'type': 'mcp_tool_call', 'server': 'workbench',
+                            'tool': 'host', 'arguments': {'action': 'push'},
+                            'error': {'message': 'synthetic denied request'}}}]
+                    observation = control.capture(request)
+                    self.assertEqual('fail', score(control.case, control.variant, observation)['status'])
+                    self.assertFalse(chronology(observation)['reports'][0]['phase_known'])
+                    self.assertEqual([], observation['events'])
+                finally:
+                    control.doCleanups()
+
 if __name__ == '__main__':
     unittest.main()
