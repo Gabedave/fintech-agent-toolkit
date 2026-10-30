@@ -14,7 +14,7 @@ from foundation.conformance import runner
 
 
 class SyntheticCaptureStartupTests(unittest.TestCase):
-    def exercise(self, prelude, after_run_error=None, sink_error=False):
+    def exercise(self, prelude, after_run_error=None, sink_error=False, corrupt_process=None):
         original_write = Path.write_text
         original_popen = subprocess.Popen
         processes = []
@@ -35,6 +35,9 @@ class SyntheticCaptureStartupTests(unittest.TestCase):
             return original_stream(*args, **kwargs)
 
         def write(path, text, *args, **kwargs):
+            if path.name == 'synthetic-process.json' and corrupt_process is not None:
+                original_write(path, corrupt_process, *args, **kwargs)
+                raise ValueError('controlled original process-record write failure')
             if path.name == 'producer.py':
                 anchor = "_fixture_phase('entered')\n"
                 text = text.replace(anchor, anchor + prelude, 1) if anchor in text else prelude + text
@@ -117,6 +120,17 @@ class SyntheticCaptureStartupTests(unittest.TestCase):
                 self.assertTrue(detail['artifacts']['journal']['text'])
                 self.assertIn('mcp_tool_call', detail['artifacts']['stdout']['text'])
                 self.assertEqual(['entered', 'host-imported', 'host-completed', 'host-completed'], [p['phase'] for p in detail['phases']])
+
+    def test_corrupt_auxiliary_cannot_replace_original_construction_error(self):
+        for body in ('{', '[]', '{"diagnostics":[]}', '{"diagnostics":{"raw_sha256":[]}}'):
+            with self.subTest(body=body):
+                result = self.exercise('', corrupt_process=body)
+                self.assertEqual('construction-error', result['actual'])
+                self.assertIn('controlled original process-record write failure', result['error'])
+                detail = result['diagnostics']
+                self.assertEqual(body, detail['artifacts']['process']['text'])
+                self.assertTrue(detail['auxiliary_errors'])
+                self.assertTrue(detail['artifacts']['stdout']['text'])
 
     def test_sink_error_still_reaps_owned_producer(self):
         result = self.exercise('', sink_error=True)

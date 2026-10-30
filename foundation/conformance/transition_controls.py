@@ -964,12 +964,30 @@ def construction_diagnostics(root, process_override=None):
             phases.append(json.loads(line))
         except ValueError as error:
             phase_errors.append(str(error))
-    process = process_override or (json.loads(process_text) if process_text else None)
-    observed_hashes = (process.get('diagnostics', {}).get('raw_sha256') or process.get('raw_sha256', {})) if process else {}
+    auxiliary_errors = []
+    process = process_override
+    if process is None and process_text:
+        try:
+            process = json.loads(process_text)
+        except ValueError as error:
+            auxiliary_errors.append('process record: ' + str(error))
+    if process is not None and not isinstance(process, dict):
+        auxiliary_errors.append('process record is not an object')
+        process = None
+    observed_hashes = {}
+    if process is not None:
+        diagnostics = process.get('diagnostics', {})
+        if not isinstance(diagnostics, dict):
+            auxiliary_errors.append('process diagnostics is not an object')
+            diagnostics = {}
+        observed_hashes = diagnostics.get('raw_sha256', process.get('raw_sha256', {}))
+        if not isinstance(observed_hashes, dict):
+            auxiliary_errors.append('process raw hashes is not an object')
+            observed_hashes = {}
     for name in ('stdout', 'stderr'):
         artifacts[name]['matches_observed_raw_hash'] = artifacts[name]['sha256'] == observed_hashes[name] if name in observed_hashes else None
     result = {'process': process, 'artifacts': artifacts, 'phases': phases,
-              'phase_parse_errors': phase_errors}
+              'phase_parse_errors': phase_errors, 'auxiliary_errors': auxiliary_errors}
     save(root / 'construction-diagnostics.json', result)
     return result
 
