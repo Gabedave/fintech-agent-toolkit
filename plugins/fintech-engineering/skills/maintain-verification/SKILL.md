@@ -22,7 +22,8 @@ For each required storage invariant, return a proof plan with these fields, appl
 - **Setup:** backend/adapter and invocation; a named temporary database/file path or database/schema, fresh namespace, deterministic synthetic seed and transaction boundaries.
 - **Action:** the adapter operations and connection/transaction sequence, including reopen/separate-connection replay and stale/current actor steps where applicable.
 - **Observation:** explicit before/after queries of operation, owner/attempt/fence and ledger/effect rows; expected committed effect counts, stable outcome, and no partial commit or stale mutation.
-- **Control:** current-owner success, seeded defect sensitivity, and omitted/complete selector collection against required IDs; keep product CI and aggregate proof separate.
+- **Control:** current-owner success, seeded defect sensitivity, and the intended complete collection invocation/selector with omitted/complete controls against required IDs; distinguish known commands from proposed or unresolved invocations and keep product CI and aggregate proof separate.
+- **Evidence:** how the proposed actions and observations will be retained under the lifecycle's identity, invocation, collection and durable-observation contract; planned retention is distinct from captured execution proof.
 - **Cleanup:** which owned namespace/resources are removed, when connections close and how cleanup is checked.
 
 If the backend is absent, label missing resources and commands PROPOSED and state the missing adapter integration. Still provide a concrete proposed isolation resource and transaction/observation design. A generic integration-later statement is incomplete; the proposal remains planned/INCOMPLETE rather than executed storage proof.
