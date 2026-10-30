@@ -70,7 +70,8 @@ def safe_env(home):
             'PYTHONDONTWRITEBYTECODE':'1'}
 
 
-def stream_process(command, env, cwd, output, timeout, prompt=None, source_launch=None):
+def stream_process(command, env, cwd, output, timeout, prompt=None, source_launch=None,
+                   synthetic_raw_sink=None):
     """Drain both pipes continuously and always kill the complete process group."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -78,6 +79,19 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
     launch_path = Path(source_launch) if source_launch is not None else output / 'effect-launch.json'
     source_reference = launch_reference(output, launch_path) if launch_path.exists() else None
     source_purpose = json.loads(launch_path.read_bytes()).get('purpose') if source_reference else None
+    # Only source-bound, credential-free synthetic controls may retain raw
+    # diagnostics. Native/model callers keep the default discard policy.
+    if synthetic_raw_sink is not None and (source_purpose != 'controlled-sensitivity'
+                                           or not callable(synthetic_raw_sink)):
+        raise ValueError('raw diagnostic sink requires controlled-sensitivity source purpose')
+    if synthetic_raw_sink is not None:
+        from .source_binding import _read as read_source_record
+        launch = json.loads(launch_path.read_bytes())
+        if (launch['executed_command'] != list(command) or len(command) < 2
+                or launch['producer_path'] != command[1]
+                or hashlib.sha256(read_source_record(output, launch['producer'])).hexdigest() != launch['expected_producer_sha256']
+                or digest(Path(command[1])) != launch['expected_producer_sha256']):
+            raise ValueError('raw diagnostic sink requires matching synthetic producer bytes and command')
     started_at_ns = time.monotonic_ns()
     p=subprocess.Popen(command,cwd=cwd,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,start_new_session=True)
@@ -186,6 +200,8 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
                     continue
                 name = key.data
                 raw_hashes[name].update(chunk)
+                if synthetic_raw_sink is not None:
+                    synthetic_raw_sink(name, chunk)
                 if name == 'stdout' and discarding_stdout_line:
                     if b'\n' not in chunk:
                         continue
@@ -208,8 +224,14 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
                         discarding_stdout_line = True
                     buffers[name] = b''
         p.wait(timeout=5)
-    except BaseException:
+    except BaseException as error:
         stop()
+        if synthetic_raw_sink is not None and isinstance(error, Exception):
+            # Preserve the observed outcome even if the synthetic sink itself
+            # fails, without changing native/default exception behavior.
+            error.synthetic_process = {'pid': p.pid, 'started_at_ns': started_at_ns,
+                                       'exit': p.returncode, 'timed_out': timed_out,
+                                       'raw_sha256': {name: value.hexdigest() for name, value in raw_hashes.items()}}
         raise
     finally:
         if p.poll() is None:
@@ -233,8 +255,8 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         'parse_errors': errors,
         'capture_gaps': capture_gaps,
         'command_sha256': hashlib.sha256(json.dumps(list(command), separators=(',', ':')).encode()).hexdigest(),
-        'non_json_stdout_retained': False,
-        'raw_stderr_retained': False
+        'non_json_stdout_retained': synthetic_raw_sink is not None,
+        'raw_stderr_retained': synthetic_raw_sink is not None
     }
     (output / 'diagnostics.json').write_text(json.dumps(diagnostics, indent=2))
     capture = {'producer': 'pipe-capture-v1', 'source': 'stdout.jsonl',
