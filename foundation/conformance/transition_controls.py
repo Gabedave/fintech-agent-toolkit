@@ -931,6 +931,13 @@ def evaluate(spec, root):
         'original_retained': True,
     }
 
+class ConstructionError(AssertionError):
+    """Keep synthetic failure bodies when a caller removes its temporary tree."""
+    def __init__(self, message, diagnostics):
+        super().__init__(message)
+        self.diagnostics = diagnostics
+
+
 def run_transitions(output):
     output = Path(output).resolve()
     output.mkdir(parents=True)
@@ -940,6 +947,8 @@ def run_transitions(output):
             row = evaluate(spec, output / spec['id'])
         except Exception as error:
             row = {'id': spec['id'], 'expected': spec['expected'], 'actual': 'construction-error', 'error': repr(error), 'model_compliance': False}
+            if isinstance(error, ConstructionError):
+                row['construction_diagnostics'] = error.diagnostics
         rows.append(row)
     result = {
         'kind': 'ordering-timeout-sensitivity-only',
@@ -981,8 +990,31 @@ def capture_control(spec, root):
     real_stream = runner.stream_process
     script = root / 'producer.py'
     program = """import copy, json, pathlib, sys, time
+_fixture_root = pathlib.Path(__file__).parent
+
+class _FixtureTee:
+    def __init__(self, stream, name):
+        self.stream = stream
+        self.raw = (_fixture_root / name).open('w', encoding='utf-8')
+    def write(self, text):
+        self.raw.write(text)
+        self.raw.flush()
+        return self.stream.write(text)
+    def flush(self):
+        self.raw.flush()
+        self.stream.flush()
+
+sys.stdout = _FixtureTee(sys.stdout, 'raw-stdout.txt')
+sys.stderr = _FixtureTee(sys.stderr, 'raw-stderr.txt')
+
+def _fixture_phase(name):
+    with (_fixture_root / 'phases.jsonl').open('a') as phase_file:
+        phase_file.write(json.dumps({'phase': name, 'ns': time.monotonic_ns()}) + '\\n')
+
+_fixture_phase('entered')
 sys.path.insert(0, sys.argv[1])
 from foundation.conformance.host import Host
+_fixture_phase('host-imported')
 cfg = json.loads(pathlib.Path(sys.argv[2]).read_text())
 ident = sys.argv[3]
 h = Host(cfg['workspace'], json.loads(pathlib.Path(cfg['state']).read_text()), cfg['journal'], cfg['installed'])
@@ -1008,6 +1040,7 @@ def call(tool, args):
     pathlib.Path(cfg['state']).write_text(json.dumps(h.state))
     item['result'] = {'content': [{'type': 'text', 'text': json.dumps(result)}]}
     emit({'type': 'item.completed', 'item': item})
+    _fixture_phase('host-completed')
 if 'truncated-startup' not in ident:
     emit({'type': 'thread.started'})
     emit({'type': 'turn.started'})
@@ -1053,7 +1086,11 @@ else:
         from .source_binding import prepare_sensitivity_launch
         executed = [sys.executable, str(script), source, str(config), mode, '--json']
         launch = prepare_sensitivity_launch(output, executed, script, sha256(script.read_bytes()))
-        raw = real_stream(executed, env, cwd, output, 0.7, source_launch=launch)
+        # Use the declared finite synthetic budget, including child startup,
+        # imports and real Host work. The old hidden0.7s override raced startup.
+        # This does not change any native/model timeout or capture rule.
+        raw = real_stream(executed, env, cwd, output, args.timeout_seconds, source_launch=launch)
+        save(root / 'synthetic-process.json', raw)
         if 'unknown-location' in ident:
             raw.pop('capture_sha256', None)
         if 'fragment' in ident:
@@ -1087,7 +1124,22 @@ else:
             return {'id': ident, 'expected': spec['expected'], 'actual': 'construction-error', 'error': repr(error), 'model_compliance': False}
     observed = json.loads((root / 'actual-run/observation.json').read_text())
     captured_stream = [json.loads(line) for line in Path(observed['observer_paths']['stdout']).read_text().splitlines()]
-    assert any((event.get('type') == 'item.completed' and event.get('item', {}).get('type') == 'mcp_tool_call' and (event['item'].get('result') is not None) for event in captured_stream)), 'fixture did not execute actual host operations'
+    if not any((event.get('type') == 'item.completed' and event.get('item', {}).get('type') == 'mcp_tool_call' and (event['item'].get('result') is not None) for event in captured_stream)):
+        paths = {name: Path(path) for name, path in observed['observer_paths'].items()}
+        paths['captured_stdout'] = paths['stdout']
+        paths.update(stdout=root / 'raw-stdout.txt', stderr=root / 'raw-stderr.txt',
+                     phases=root / 'phases.jsonl', process=root / 'synthetic-process.json',
+                     producer=script, launch=root / 'actual-run/observer/sensitivity-effect-launch.json',
+                     config=root / 'actual-run/observer/host-config.json')
+        artifacts = {}
+        for name, path in paths.items():
+            raw = path.read_bytes() if path.is_file() else None
+            artifacts[name] = {'path': str(path), 'sha256': sha256(raw) if raw is not None else None,
+                               'text': raw.decode('utf-8') if raw is not None else None}
+        diagnostics = {'process': observed['process'], 'artifacts': artifacts,
+                       'phases': [json.loads(line) for line in artifacts['phases']['text'].splitlines()] if artifacts['phases']['text'] else []}
+        save(root / 'construction-diagnostics.json', diagnostics)
+        raise ConstructionError('fixture did not execute actual host operations', diagnostics)
     if ident == 'P-established-event-tamper':
         run = root / 'actual-run'
         o = json.loads((run / 'observation.json').read_text())
