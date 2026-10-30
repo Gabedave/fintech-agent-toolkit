@@ -1,25 +1,25 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "b1d7ef7f9714d20d821c4bcb69bf4be545073fee",
+  "source_commit": "f26d29ee01baf54d37b2ca7c7c26752b5bae0fb1",
   "plugin_name": "fintech-engineering",
   "plugin_version": "0.2.7",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
     "version": "1.0.7",
-    "commit": "b1d7ef7f9714d20d821c4bcb69bf4be545073fee",
-    "digest": "645ea6fa9d969b6ea38714d0a9dd8f05d9d230c4e8d80166ee6cddb25f39a36c"
+    "commit": "f26d29ee01baf54d37b2ca7c7c26752b5bae0fb1",
+    "digest": "a67b80f671eab61823f8587cd6fe74d4d9253f64bc577a6b3fd9ea1eacff7ff1"
   },
   "adapter_revision": "1.0.2",
   "profile_digest": "bd97f8d80383f99f5862f4e4356933a8b1133521eb3b0d27464554f6ce46b0bd",
-  "generated_tree_digest": "af2440e32a444af787d8f1d486642895474788c39e9fbb3c3c9e342438523928",
+  "generated_tree_digest": "d2cd260ab1cd384ac77ff85cc6a5d7952ab6282c1c22e5ea0d9f2332f9fcd4aa",
   "files": {
     ".agents/plugins/marketplace.json": {
       "sha256": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": {
-      "sha256": "4c94a41eb008985d0d7988ed891ba2a46a716e85c4cbb090368e3d880e197325",
+      "sha256": "e0f4afb008853f25a3099da6cb50f7727c4b192b5d4599cb2bf718ec6e50638a",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/plugin.json": {
@@ -131,7 +131,7 @@
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/maintain-verification/references/lifecycle.md": {
-      "sha256": "086045eaa18a4028783b168221928f8f56bebeef7704e321ac5e0aac7e07e7e2",
+      "sha256": "9b34706afd144c717b80dc82b921a8d0f82946facee0bda4bd0cfbe3ecec5d2e",
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/pre-push-review/SKILL.md": {
