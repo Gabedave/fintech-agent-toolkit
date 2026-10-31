@@ -15,9 +15,11 @@ class PreflightGuards(unittest.TestCase):
     def capture(self, stdout='', stderr='', exit_code=0):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            command = [sys.executable, '-B', '-c',
-                       'import sys;sys.stdout.write(%r);sys.stderr.write(%r);sys.exit(%r)'
-                       % (stdout, stderr, exit_code)]
+            producer = root / 'producer.py'
+            producer.write_text(
+                'import sys;sys.stdout.write(%r);sys.stderr.write(%r);sys.exit(%r)'
+                % (stdout, stderr, exit_code), encoding='utf-8')
+            command = [sys.executable, '-B', str(producer)]
             result = stream_process(command, safe_env(root), root, root / 'out', 5)
             diagnostics = json.loads((root / 'out/diagnostics.json').read_text())
             self.assertEqual(exit_code, diagnostics['process_exit'])
