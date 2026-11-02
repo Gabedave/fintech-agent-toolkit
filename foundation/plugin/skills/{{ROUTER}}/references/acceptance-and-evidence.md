@@ -6,6 +6,8 @@ For a policy or required-check change, retain the trusted-base requirements and 
 
 ## Pre-edit chronology
 
+Before the first applicable semantic reproduction or sensitive invariant control used as pre-edit proof, classify the risk and establish or adopt the independently grounded expected behavior. Ground it in user requirements, an authoritative contract or an independent assertion before seeing the result. Concise adoption of an already fixed invariant is sufficient; keep its meaning, grounding and timing inspectable without a prescribed format. Ordinary source/contract discovery, capability preflight and unrelated low-risk mechanical checks may precede this proof step.
+
 Bind risk classification, fixed expectations, applicable semantic reproductions or sensitive invariant controls, source identity and command outcomes before the first production write. Use trustworthy tool or harness events when available; otherwise state the chronology limit. Self-reported completion fields alone are insufficient evidence of execution. A baseline failure must concern missing/incorrect behavior, not an unavailable service. A behavior-preserving refactor can use passing controls that demonstrably detect a controlled unsafe variant.
 
 When a gate was missed, record that historical finding and its disposition. Later tests may establish final behavior; they cannot turn the earlier sequence into compliant work. Preserve failures and evidence rather than reconstructing a pre-edit record after the fact.
