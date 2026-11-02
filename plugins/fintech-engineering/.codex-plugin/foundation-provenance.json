@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "1d9c3d25f4b48c364407d3e24ef8284fecf90862",
+  "source_commit": "d562094cdefce935de033a9cb557bca4f5916fe2",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.9",
+  "plugin_version": "0.2.10",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.9",
-    "commit": "1d9c3d25f4b48c364407d3e24ef8284fecf90862",
-    "digest": "d668a4b48189ba3463105ef1b408effdd904c9ad7ff41bc10384daf5536c36e1"
+    "version": "1.0.10",
+    "commit": "d562094cdefce935de033a9cb557bca4f5916fe2",
+    "digest": "ea8bdab01b07c5d955ef403b1ad8b004aaa9940fbee914468dbc0e43c5965b65"
   },
   "adapter_revision": "1.0.2",
-  "profile_digest": "3c554e7f6d9c85af7403c3ff16ed50b736718a85460c7abf8c329f4bf8ac450f",
+  "profile_digest": "893e50310f459f73c9500b10ba88f43c9341e134499f2db3c65cb3be3b72c332",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "9ea346fc48c78910df780afbf91f4b67016f1229198ceddd2bf0104cbed7e34f",
+      "sha256": "7846bd32a4049ef49c737163c02238d10251a4c25837e2b94153e61592a09fcd",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -70,7 +70,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/SKILL.md": {
-      "sha256": "a44f46672a17de8e2a086df1e66f9315bc275e0c73328746a19b85be66d64d7d",
+      "sha256": "55446265c21603dc7cd45fab59aeaea41c885d16ff19048d79af44b9445bce37",
       "mode": "0644"
     },
     "skills/fintech-mode/agents/openai.yaml": {
@@ -78,7 +78,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/references/acceptance-and-evidence.md": {
-      "sha256": "bc6ce59b1a05b0624e636d2f2181067d538cadda195019cbede1a02b8b36efec",
+      "sha256": "3c191cca5a36f35251ce6a92ae4a34dc82ac9f652def646ba854ce92acfdc6ae",
       "mode": "0644"
     },
     "skills/fintech-mode/references/implementation-readiness.md": {
@@ -182,5 +182,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "d4c9c04540428049ba0d863aeeaf60410b9e4938843ce8579e52b8ecf01256b8"
+  "content_digest": "e754e67f04559035185a45b0550ea6a0c36d1295014e74031a76ea7bf0fdfdd1"
 }
