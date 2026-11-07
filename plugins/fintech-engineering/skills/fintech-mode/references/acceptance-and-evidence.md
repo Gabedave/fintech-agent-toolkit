@@ -10,7 +10,17 @@ Before the first applicable semantic reproduction or sensitive invariant control
 
 Bind risk classification, fixed expectations, applicable semantic reproductions or sensitive invariant controls, source identity and command outcomes before the first production write. Use trustworthy tool or harness events when available; otherwise state the chronology limit. Self-reported completion fields alone are insufficient evidence of execution. A baseline failure must concern missing/incorrect behavior, not an unavailable service. A behavior-preserving refactor can use passing controls that demonstrably detect a controlled unsafe variant.
 
+An intended semantic failure completes the defect-reproduction step; it does not itself prohibit an authorized repair. Keep an expected red result separate from unavailable infrastructure and from an independent read-only, access or root-mechanism restriction. A healthy refactor baseline plus detected unsafe variants is valid pre-edit evidence; it does not need an invented baseline defect.
+
 When a gate was missed, record that historical finding and its disposition. Later tests may establish final behavior; they cannot turn the earlier sequence into compliant work. Preserve failures and evidence rather than reconstructing a pre-edit record after the fact.
+
+## Operation and claim scope
+
+Before each material interim or final claim, identify the actual operation, subject/runtime identity, command result and observed state that support it. Distinguish an observation from an inference, a proposed action and proof that has not run. Keep those distinctions consistent in the final report; a later correction does not erase an earlier unsupported claim.
+
+A generic duplicate-row probe proves only its exercised subject. It does not establish a losing transaction, ownership-loss effect or rollback in another path. Unchanged financial state establishes preservation, not an unexecuted rollback. When proving saturation, exercise the actual resource-admission operation at the named ceiling; a generic rejection cannot establish that capacity admission was refused. Retain the current-owner or under-capacity success control where the invariant requires it.
+
+Report independently established facts by layer. For example, verified source/installed identity can coexist with unavailable runtime proof; one blocked layer does not turn another layer's observed validation into an unknown. Keep definitive rejection, ambiguous provider outcome, replay safety and actual durable effects distinct instead of inferring one from another.
 
 ## CI inclusion and aggregate readiness
 
@@ -21,6 +31,8 @@ Confirm the repository's required aggregate gate at the exact current PR head wi
 ## Evidence destination
 
 Put review-only reports, command results and privacy-safe captures in the authorized PR description/attachments and retain originals in local temporary or ignored storage through hosted verification. Maintained product documentation, runbooks, ADRs and intentional assets belong in normal source locations. Honor an explicit user storage exception within its exact scope. Keep private working notes and raw transcripts local; publishing code does not implicitly publish those artifacts.
+
+Create comparison copies and temporary proof artifacts in a unique owned task directory. Establish ownership before replacing or removing an existing path; a convenient fixed temporary filename is not evidence that it is safe to overwrite. Retain any unknown prior-state or cleanup limit explicitly rather than claiming all unrelated state was preserved.
 
 ## Safe observability
 

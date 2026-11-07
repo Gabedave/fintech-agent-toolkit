@@ -5,6 +5,7 @@ these static controls detect the conflicting-reference regression before model c
 """
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,30 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CompanyDeliveryPolicy(unittest.TestCase):
+    def test_first_plan_minimum_includes_separate_installation_authority(self):
+        required = {
+            'edit', 'commit', 'push', 'open-pull-request',
+            'merge', 'deploy', 'user-installation',
+        }
+        for name in ('example', 'gabedave'):
+            profile_path = ROOT / 'profiles' / (name + '.json')
+            profile = json.loads(profile_path.read_text())
+            with self.subTest(default=profile['delivery_default']), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp).resolve() / 'output'
+                result = subprocess.run([
+                    sys.executable, '-B', str(ROOT / 'foundation/render.py'),
+                    '--profile', str(profile_path), '--output', str(output),
+                    '--source-commit', '1234567890abcdef1234567890abcdef12345678',
+                ], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                router = output / 'plugins' / profile['plugin_name'] / 'skills' / profile['router'] / 'SKILL.md'
+                minimum = next(
+                    line.split('at minimum', 1)[0]
+                    for line in router.read_text().splitlines()
+                    if 'first working plan' in line and 'at minimum' in line
+                )
+                self.assertLessEqual(required, set(re.findall(r'`([^`]+)`', minimum)))
+
     def test_active_installation_boundary_preserves_existing_task_authority(self):
         for name in ('example', 'gabedave'):
             profile_path = ROOT / 'profiles' / (name + '.json')
