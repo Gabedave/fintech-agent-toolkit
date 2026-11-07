@@ -14,6 +14,31 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CompanyDeliveryPolicy(unittest.TestCase):
+    def test_active_installation_boundary_preserves_existing_task_authority(self):
+        for name in ('example', 'gabedave'):
+            profile_path = ROOT / 'profiles' / (name + '.json')
+            profile = json.loads(profile_path.read_text())
+            with self.subTest(default=profile['delivery_default']), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp).resolve() / 'output'
+                result = subprocess.run([
+                    sys.executable, '-B', str(ROOT / 'foundation/render.py'),
+                    '--profile', str(profile_path), '--output', str(output),
+                    '--source-commit', '1234567890abcdef1234567890abcdef12345678',
+                ], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                skill = output / 'plugins' / profile['plugin_name'] / 'skills' / profile['router']
+                for relative in ('SKILL.md', 'references/playbooks.md'):
+                    text = (skill / relative).read_text()
+                    for clause in (
+                        'Personal or user-wide active plugin/skill installation changes are a separate authority boundary',
+                        'perform them only within applicable explicit task/session authorization',
+                        'Honor authorization already granted within its scope, without asking again or extending it',
+                        'Authorized product-repository work and owned disposable fixture setup retain their existing task scope',
+                        'Merge, deployment, ticket updates, and team messages require separate explicit authorization',
+                        'Readiness and green CI never grant merge or deployment authority',
+                    ):
+                        self.assertIn(clause, text)
+
     def test_router_and_loaded_playbook_agree_for_both_defaults(self):
         for name in ('example', 'gabedave'):
             profile_path = ROOT / 'profiles' / (name + '.json')
