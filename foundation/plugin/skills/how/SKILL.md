@@ -7,6 +7,8 @@ description: Explain how a {{AUDIENCE}} system, feature, or runtime path current
 
 Build a trustworthy current-system model before proposing or reviewing a change. This skill explains what the system demonstrably does; use `$why` separately when historical intent matters.
 
+Before selecting probes, interpreting verification or runtime evidence, or making a material evidence claim, read [operation and claim scope](../{{ROUTER}}/references/acceptance-and-evidence.md#operation-and-claim-scope), including when this skill is entered directly for a read-only investigation.
+
 ## Choose source scope
 
 Choose the evidence boundary from explicit task/source context before resolving authority:

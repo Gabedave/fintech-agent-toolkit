@@ -9,6 +9,8 @@ Turn the user's requested outcome into a proportionate engineering loop while pr
 
 ## Ground the task
 
+Before selecting probes, interpreting verification or runtime evidence, or making a material evidence claim, read [operation and claim scope](references/acceptance-and-evidence.md#operation-and-claim-scope). This applies to read-only investigation, review and status work as well as implementation.
+
 1. Read every applicable `AGENTS.md` from the workspace root through the affected working directory.
 2. Inspect the selected ticket, linked pull requests, repository state, manifests, and existing checks.
 3. When work may create or update a pull request, resolve the repository's default branch from its authoritative host before choosing the worktree starting point or PR base. Use that default unless the user or ticket explicitly names another target. A current checkout, local branch name, linked PR, or previously reviewed base is context, not authority. Record the resolved default and any explicit override in the plan.
