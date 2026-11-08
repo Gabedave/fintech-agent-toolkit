@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "3b762675dd3dc334f71cffd2869ac1db652eed89",
+  "source_commit": "442660646a325f99d24ed69f37b789a656a4a3de",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.12",
+  "plugin_version": "0.2.13",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.12",
-    "commit": "3b762675dd3dc334f71cffd2869ac1db652eed89",
-    "digest": "a1d6cd961b4dd0d6037a88c675ff694ff6edea06ab650059fee88ead0bd0ef6b"
+    "version": "1.0.13",
+    "commit": "442660646a325f99d24ed69f37b789a656a4a3de",
+    "digest": "bf67f7949b8503e4542fad5b3f85308fea690e3b130220e61abefb9db0c9fb29"
   },
   "adapter_revision": "1.0.2",
-  "profile_digest": "8511300c1fcd150ff2facab6448ba493d8bc60c4732520bddb475b7bbe4fdfa0",
+  "profile_digest": "d48aa6df606eaf20dbcfca6e1ece566c1525a2ba117490d99a9b9db3c221930b",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "03e8c10534130df9d8fdadc8e459f5eb479e59e56c14e6f1414fe353715d9325",
+      "sha256": "f048562d28c32f9205d5f49e046092cdc3dcec3db447679a1acf5c07f2c8c4d4",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -70,7 +70,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/SKILL.md": {
-      "sha256": "99fa5b16cf6c1e04db5aa737534af6cb7fad55cfa16d31d3249dcf783107cad2",
+      "sha256": "e0999108ecacbabda21494b34d23ec9a68412c29b78524da0e2362a19c6d8762",
       "mode": "0644"
     },
     "skills/fintech-mode/agents/openai.yaml": {
@@ -102,7 +102,7 @@
       "mode": "0644"
     },
     "skills/how/SKILL.md": {
-      "sha256": "c784f8847b4dedb70eb0b6d0afc6b38074db943a471f960f638409e9df1044bc",
+      "sha256": "4b87f7d9b51a4f30679e3f21eeb9f43f6cfb857d521028505a83bcd165f5fcff",
       "mode": "0644"
     },
     "skills/how/agents/openai.yaml": {
@@ -182,5 +182,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "231635c907106eba419679a7b07eae45d3adba124c226385ca1395f0117dcf4a"
+  "content_digest": "4cc0720e0337e5159787fd8ac789e5be5394abfa9dc101e8127c9c01f0d1c3d5"
 }
