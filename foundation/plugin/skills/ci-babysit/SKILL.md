@@ -18,6 +18,8 @@ Drive the current pull-request revision to an honest merge-ready status. A compl
 
 ## Follow checks
 
+In `check` or `monitor` mode, report authoritative state and stop at that scope. Investigate logs/source or reproduce failures only when diagnosis is requested; repairs require `drive` authorization.
+
 - Prefer compact status polling that wakes on a state change rather than rapid repeated queries.
 - After every push, read the PR again and replace the tracked SHA. Accept check and review results only when they belong to that exact latest head; older green or failing runs are superseded evidence.
 - Inspect the failing step and its surrounding log, not only the job conclusion.

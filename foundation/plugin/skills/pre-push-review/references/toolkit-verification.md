@@ -1,0 +1,5 @@
+# Toolkit verification
+
+For toolkit plugin-behavior changes, deterministic checks alone are insufficient. During development use `scripts/release_smoke.py --development --scenario <id>` for affected cases and regression controls; record the impact rationale and selected/omitted IDs. These are development evidence, never full qualification. Before team-ready or release claims, run every model-backed scenario against the exact clean installed candidate with default full `scripts/release_smoke.py`; broad routing changes or uncertain impact also require full coverage. Use only an authorized supported disposable installation route. Retain version/commit/pass count; keep historical failures and repository-required checks. Missing, partial, mismatched or failed required live evidence remains `NOT READY FOR TEAM REVIEW`.
+
+When changing this review gate or its review-quality evaluator/fixtures, also run the bounded local pilot with `scripts/release_smoke.py --review-quality`. Report reproduced defects, accepted fixed controls, false blockers, and elapsed time. It supplements the existing gate; it is not another product reviewer or proof of general review accuracy.

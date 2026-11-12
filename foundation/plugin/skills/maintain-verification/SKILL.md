@@ -7,12 +7,16 @@ description: Audit and repair {{AUDIENCE}} repository verifiers against current 
 
 Treat repository verification as maintained product infrastructure. During a verifier-only task, change only verifier-owned skills, maps, scripts, fixtures, selectors, and documentation unless the user separately authorizes product changes.
 
-## Audit every feature
+## Select the audit scope
+
+For a focused repair, select affected features and dependent proof boundaries from the changed commands, selectors, fixtures and shared helpers. Record why this scope covers the change. Expand to all features for an explicitly requested full audit, shared verifier changes affecting all features, or evidence of systemic drift. If impact is uncertain, finish discovery before narrowing. Retain all repository-required checks and aggregate inputs; a scoped audit cannot claim whole-repository health.
+
+## Audit selected features
 
 1. Read repository `AGENTS.md`, the local `verify-*` skill, its feature map, planner, test configuration, and relevant CI.
-2. For each mapped feature, trace the entry points and proof claim against current source, contracts, jobs, routes, native surfaces, and tests.
-3. Confirm mapped commands and selectors still exist, run the planner or doctor surface, and execute one safe automated or live pass per feature where the environment permits it.
-4. Check for important current behaviour with no feature mapping and for mapped proof claims that no longer exercise their stated boundary.
+2. For each selected feature, trace the entry points and proof claim against current source, contracts, jobs, routes, native surfaces, and tests.
+3. Confirm mapped commands and selectors still exist, run the planner or doctor surface, and execute one safe automated or live pass per selected feature where the environment permits it.
+4. Check the affected boundary for important current behaviour with no feature mapping and for mapped proof claims that no longer exercise their stated boundary.
 5. Capture privacy-safe evidence and clean up processes, containers, simulator state, traces, and temporary identities started by the audit.
 
 Read [references/lifecycle.md](references/lifecycle.md) for the required verifier contract and result classification. For persistence, replay, ownership or fencing changes, complete its storage proof plan. In audit/planning-only tasks, propose the concrete setup and observations without launching services, editing files or claiming executed proof.

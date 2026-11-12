@@ -65,9 +65,14 @@ If a repository repeatedly depends on an undeclared capability, repair its verif
 
 ## Synthetic merge readiness
 
-Before an authorized push, refresh the selected base and verify the combined base-plus-head tree. Use
-the plugin's `scripts/verify_merge_candidate.py` with the repository's lightweight doctor, contract,
-or build check. The command executes in a disposable worktree and returns a machine-readable result.
+`$pre-push-review` owns the single synthetic-merge check for an authorized push.
+Refresh the selected base and run `scripts/verify_merge_candidate.py` with a
+repository-owned lightweight check. Accept readiness only when the disposable
+combined tree is conflict-free and that check passes. Record base/head SHAs,
+clean working-tree identity, verifier command and relevant configuration/environment inputs.
+At the push boundary recheck those identities. Reuse a successful result only
+while all inputs remain unchanged and inspectable. Changed or unknown inputs require a fresh check;
+failures and incomplete results cannot be reused. Other skills consume this result.
 
 A conflict, missing ref, missing verification command, or failing combined-tree check blocks push
 readiness. Branch-only success cannot substitute for this result. Run product tests in the repository's

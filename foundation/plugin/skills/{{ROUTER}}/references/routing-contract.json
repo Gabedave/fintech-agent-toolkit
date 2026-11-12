@@ -1,6 +1,8 @@
 {
   "version": 1,
-  "default_for_nontrivial": ["how"],
+  "default_for_nontrivial": [
+    "how"
+  ],
   "signals": {
     "ownership_uncertain": "blast-radius",
     "historical_intent_material": "why",
@@ -55,5 +57,12 @@
     "automatic-merge",
     "automatic-deploy",
     "transcript-mining"
-  ]
+  ],
+  "status_only": {
+    "playbook": "investigation",
+    "allowed_signals": [
+      "pull_request_followthrough",
+      "long_running_or_handoff"
+    ]
+  }
 }
