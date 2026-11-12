@@ -122,7 +122,21 @@ def main() -> None:
         action="store_true",
         help="Print complete successful synthetic reviews instead of the compact summary.",
     )
+    parser.add_argument("--development", action="store_true",
+                        help="Run selected development checks; never report release qualification.")
+    parser.add_argument("--scenario", action="append", default=[],
+                        help="Development scenario ID; repeat for affected cases and regression controls.")
     args = parser.parse_args()
+    if bool(args.scenario) != args.development:
+        parser.error("--development requires --scenario and scenario selection requires --development")
+    all_scenarios = json.loads(SCENARIOS.read_text()).get("scenarios", [])
+    selected = set(args.scenario)
+    known = {case["id"] for case in all_scenarios}
+    if selected - known:
+        parser.error("unknown scenarios: " + ", ".join(sorted(selected - known)))
+    scenarios = [case for case in all_scenarios if not selected or case["id"] in selected]
+    if not scenarios:
+        parser.error("no behavior scenarios selected")
     if not 30 <= args.timeout_seconds <= 180:
         parser.error("timeout must be between 30 and 180 seconds per model call")
     if args.verbose_review_output and not args.review_quality:
@@ -141,7 +155,6 @@ def main() -> None:
         fail("Codex authentication file is unavailable; authenticate before release testing")
 
     manifest = json.loads(MANIFEST.read_text())
-    scenarios = json.loads(SCENARIOS.read_text()).get("scenarios", [])
     review_pairs = json.loads(REVIEW_CASES.read_text()).get("cases", [])
     commit = git_output("rev-parse", "HEAD")
 
@@ -175,6 +188,8 @@ def main() -> None:
         ]
         if args.model:
             command.extend(["--model", args.model])
+        for scenario in scenarios if args.development else []:
+            command.extend(["--scenario", scenario["id"]])
         smoke_output = run(
             command,
             env,
@@ -223,7 +238,12 @@ def main() -> None:
                 raise
             print(summary)
 
-    print(f"fintech plugin release smoke passed ({len(scenarios)} scenarios)")
+    if args.development:
+        print(f"Development smoke passed ({len(scenarios)}/{len(all_scenarios)} scenarios); not release qualification")
+        print("Selected scenarios: " + ", ".join(case["id"] for case in scenarios))
+        print("Omitted scenarios: " + ", ".join(sorted(known - selected)))
+    else:
+        print(f"fintech plugin release smoke passed ({len(scenarios)} scenarios)")
     print(f"Candidate version: {manifest['version']}")
     print(f"Candidate commit: {commit}")
     print(f"Example backend commit: {backend_commit}")

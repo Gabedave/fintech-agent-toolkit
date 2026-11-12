@@ -52,7 +52,8 @@ class CompanyDeliveryPolicy(unittest.TestCase):
                 ], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 skill = output / 'plugins' / profile['plugin_name'] / 'skills' / profile['router']
-                for relative in ('SKILL.md', 'references/playbooks.md'):
+                self.assertIn('references/playbooks.md#delivery-and-authorization', (skill / 'SKILL.md').read_text())
+                for relative in ('references/playbooks.md',):
                     text = (skill / relative).read_text()
                     for clause in (
                         'Personal or user-wide active plugin/skill installation changes are a separate authority boundary',
@@ -80,7 +81,7 @@ class CompanyDeliveryPolicy(unittest.TestCase):
                 router = (skill / 'SKILL.md').read_text()
                 playbooks = (skill / 'references/playbooks.md').read_text()
                 policy = 'Default delivery: ' + profile['delivery_default'] + '.'
-                self.assertIn(policy, router)
+                self.assertIn('references/playbooks.md#delivery-and-authorization', router)
                 self.assertIn(policy, playbooks)
                 self.assertNotIn('pair every non-trivial production repository-editing playbook', playbooks)
                 if profile['delivery_default'] == 'local-only':

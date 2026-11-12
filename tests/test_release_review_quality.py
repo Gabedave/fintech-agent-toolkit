@@ -24,7 +24,7 @@ QUALITY_OUTPUT = "\n".join([
 class ReleaseReviewQuality(unittest.TestCase):
     def run_release(self, include_quality, changed=False, backend_dirty=False,
                     backend_changed=False, verbose_quality=False,
-                    quality_output=QUALITY_OUTPUT, expected_failure=False):
+                    quality_output=QUALITY_OUTPUT, expected_failure=False, scenarios=None):
         calls = []
         state = []
 
@@ -41,7 +41,7 @@ class ReleaseReviewQuality(unittest.TestCase):
                 self.assertEqual(
                     kwargs["timeout_seconds"],
                     release_smoke.suite_timeout(
-                        scenario_count
+                        (len(set(scenarios)) if scenarios else scenario_count)
                         + release_smoke.MAX_BEHAVIOR_OPERATIONAL_REPLACEMENTS,
                         120,
                     ),
@@ -77,6 +77,10 @@ class ReleaseReviewQuality(unittest.TestCase):
             auth = Path(directory) / "synthetic-auth.json"
             auth.write_text("{}")
             argv = ["release_smoke.py", "--repo", directory, "--auth-file", str(auth)]
+            if scenarios:
+                argv.append("--development")
+                for scenario in scenarios:
+                    argv.extend(["--scenario", scenario])
             if include_quality:
                 argv.append("--review-quality")
             if verbose_quality:
@@ -98,6 +102,27 @@ class ReleaseReviewQuality(unittest.TestCase):
             self.assertEqual(auth.read_text(), "{}")
         self.assertTrue(all(not path.exists() for path in state))
         return calls, output.getvalue()
+
+    def test_targeted_development_forwards_only_selected_ids_and_reports_omissions(self):
+        ids = [case["id"] for case in release_smoke.json.loads(release_smoke.SCENARIOS.read_text())["scenarios"]]
+        calls, output = self.run_release(False, scenarios=[ids[0], ids[0]])
+        command = calls[2][0]
+        self.assertEqual(command.count("--scenario"), 1)
+        self.assertEqual(command[command.index("--scenario") + 1], ids[0])
+        self.assertIn("not release qualification", output)
+        self.assertNotIn("plugin release smoke passed", output)
+        self.assertIn("Omitted scenarios: ", output)
+        self.assertIn(ids[1], output)
+
+    def test_invalid_development_selection_stops_before_identity_auth_or_install(self):
+        ids = [case["id"] for case in release_smoke.json.loads(release_smoke.SCENARIOS.read_text())["scenarios"]]
+        for extra in (["--scenario", ids[0]], ["--development"],
+                      ["--development", "--scenario", "unknown-id"]):
+            with self.subTest(extra=extra), mock.patch.object(sys, "argv", ["release_smoke.py", "--repo", ".", *extra]), mock.patch.object(release_smoke, "run") as run, mock.patch.object(release_smoke, "git_output") as git:
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    release_smoke.main()
+                run.assert_not_called()
+                git.assert_not_called()
 
     def test_quality_adds_to_routing_in_same_disposable_installation(self):
         calls, output = self.run_release(True)

@@ -57,5 +57,12 @@
     "automatic-merge",
     "automatic-deploy",
     "transcript-mining"
-  ]
+  ],
+  "status_only": {
+    "playbook": "investigation",
+    "allowed_signals": [
+      "pull_request_followthrough",
+      "long_running_or_handoff"
+    ]
+  }
 }

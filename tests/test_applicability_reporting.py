@@ -8,7 +8,13 @@ SKILLS = ROOT / "foundation/plugin/skills"
 
 
 def text(relative):
-    return " ".join((SKILLS / relative).read_text().split())
+    path = SKILLS / relative
+    content = path.read_text()
+    if path.name == "playbooks.md":
+        # Follow the disclosed workflow links; preserve the original scope assertions.
+        for name in ("none", "investigation"):
+            content += "\n## " + (path.parent / "playbooks" / (name + ".md")).read_text()[2:]
+    return " ".join(content.split())
 
 
 class ApplicabilityReporting(unittest.TestCase):

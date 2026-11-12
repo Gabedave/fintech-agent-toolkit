@@ -337,6 +337,58 @@
         "trail_disposition": "not-required:not-applicable"
       },
       "expected_min_skipped": 1
+    },
+    {
+      "id": "status-only-pr-check",
+      "expected_decision_records": {
+        "adr_disposition": "not-required:none",
+        "trail_disposition": "not-required:not-applicable"
+      },
+      "prompt": "Check the current CI status of the existing pull request and report which required checks are pending or failed at its exact latest head. This is one read-only status pass. Do not diagnose causes, inspect implementation, rerun jobs, repair code or change the pull request.",
+      "expected_playbook": "investigation",
+      "expected_additional_playbooks": [],
+      "expected_skills": [
+        "fintech-mode",
+        "ci-babysit"
+      ],
+      "expected_verifiers": [],
+      "expected_actions": [],
+      "expected_withheld_actions": [
+        "edit",
+        "commit",
+        "push",
+        "open-pull-request",
+        "merge",
+        "deploy"
+      ],
+      "expected_pull_request_lifecycle": {
+        "default_branch_check": "required",
+        "base_selection": "repository-default",
+        "ci_revision": "exact-latest-pr-head",
+        "merge_gate": "explicit-authorization-required"
+      },
+      "expected_implementation_readiness": {
+        "risk_classification": "not-applicable",
+        "proof_gate": "not-applicable",
+        "scenario_classes": [],
+        "capability_preflight": "not-applicable",
+        "synthetic_merge": "not-applicable"
+      },
+      "routing_allowance": {
+        "primary_playbooks": [
+          "investigation"
+        ],
+        "required_playbooks": [
+          "investigation"
+        ],
+        "optional_playbooks": [],
+        "optional_skills": [],
+        "repository_verifier_sets": [
+          []
+        ]
+      },
+      "expected_min_skipped": 1,
+      "existing_pull_request": true
     }
   ]
 }

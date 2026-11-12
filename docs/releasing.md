@@ -68,3 +68,13 @@ readback, and behavioral gates. For a changed runtime or format, establish a
 matching applicable validator. A missing or unsuitable official check remains
 incomplete and blocks release; an older validator is neither a replacement for
 new-format coverage nor a waiver.
+
+## Targeted development checks
+
+For a bounded change with known impact, select affected cases and named regression controls:
+
+```sh
+python3 scripts/release_smoke.py --development --scenario <affected-id> --scenario <control-id> --repo /path/to/clean/fixture
+```
+
+Record why the selection covers the changed behavior. The command retains candidate/fixture identity, disposable-state setup and per-call limits, and prints selected and omitted IDs. It does not authorize installation or external model use. Use only a supported, authorized disposable route; stop if isolation cannot be established. A targeted pass is development evidence, not team-ready or release qualification. Full release checks, broad/uncertain routing-change coverage, required review-quality pilots, adverse history and unresolved qualification gaps remain mandatory.

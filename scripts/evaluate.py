@@ -33,7 +33,16 @@ def load(path: Path) -> dict:
 def route(contract: dict, scenario: dict) -> tuple[str, list[str], list[str], list[str]]:
     playbook = scenario["task_kind"]
     skills: set[str] = set()
-    if scenario.get("nontrivial"):
+    status_only = scenario.get("status_only", False)
+    if type(status_only) is not bool:
+        fail("status_only must be boolean")
+    if status_only:
+        rule = contract["status_only"]
+        if (playbook != rule["playbook"] or scenario.get("implementation_delivery")
+                or scenario.get("authorized_actions")
+                or set(scenario.get("signals", [])) - set(rule["allowed_signals"])):
+            fail("status-only routing cannot include diagnosis, implementation or mutation")
+    if scenario.get("nontrivial") and not status_only:
         skills.update(contract["default_for_nontrivial"])
     for signal in scenario.get("signals", []):
         try:
