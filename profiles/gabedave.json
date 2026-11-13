@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.16",
+  "plugin_version": "0.2.17",
   "marketplace": "gabedave",
   "company": "Gabedave",
   "router": "fintech-mode",
   "router_title": "Fintech Mode",
   "audience": "fintech",
   "repository_url": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "adapter_revision": "1.0.5",
+  "adapter_revision": "1.0.6",
   "discovery": {
     "backend": [
       "backend",

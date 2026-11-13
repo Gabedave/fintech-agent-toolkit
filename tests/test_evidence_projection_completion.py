@@ -65,6 +65,19 @@ class EvidenceCompletionTests(unittest.TestCase):
         rows = self.project(lambda item: item.update(server='other'))
         self.assertEqual([1, 1, 2, 2], [row['source_line'] for row in rows])
 
+    def test_native_operations_journal_without_host_sequence_is_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native = {'type': 'item.completed', 'item': {'id': 'read', 'type': 'command_execution',
+                      'command': 'cat fixture.txt', 'exit_code': 0}}
+            (root / 'journal.jsonl').write_text(json.dumps(native) + '\n')
+            (root / 'raw.jsonl').write_text(json.dumps({'type': 'item.completed', 'item': {
+                'type': 'agent_message', 'text': 'Observed the retained fixture.'}}) + '\n')
+            rows = report_projection(root, [artifact(root, 'journal', 'raw_tool_journal', 'journal.jsonl'),
+                                            artifact(root, 'raw', 'raw_process_stream', 'raw.jsonl')])
+            self.assertEqual(['Observed the retained fixture.'], [row['text'] for row in rows])
+            self.assertEqual(native, json.loads((root / 'journal.jsonl').read_text()))
+
 
 if __name__ == '__main__':
     unittest.main()
