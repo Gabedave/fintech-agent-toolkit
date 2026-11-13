@@ -35,6 +35,11 @@ class EvidenceCompletionTests(unittest.TestCase):
         self.assertEqual(['true', 'pass', 'false', 'pending'], [row['text'] for row in rows])
         self.assertEqual([1, 1, 2, 2], [row['source_line'] for row in rows])
 
+    def test_boolean_to_number_correction_keeps_typed_original(self):
+        rows = self.project(lambda item: item['arguments']['fields'].update(access_check=1))
+        self.assertEqual(['true', 'pass', '1', 'pass'], [row['text'] for row in rows])
+        self.assertEqual([1, 1, 2, 2], [row['source_line'] for row in rows])
+
     def test_exact_completion_deduplicates_equivalent_decoded_arguments(self):
         rows = self.project(lambda item: item.update(arguments=json.dumps(item['arguments'])))
         self.assertEqual(['true', 'pass'], [row['text'] for row in rows])
