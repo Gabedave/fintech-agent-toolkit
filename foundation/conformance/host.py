@@ -320,8 +320,11 @@ class Host:
             if resource == 'ownership':
                 with database(self.root / 'synthetic.sqlite') as db:
                     rows = db.execute('SELECT * FROM ownership').fetchall()
+                    ledger = db.execute('SELECT * FROM ledger').fetchall()
                 return {
+                    'storage': 'synthetic.sqlite',
                     'rows': rows,
+                    'committed_ledger_rows': ledger,
                     'authoritative': f.get('authoritative'),
                     'presented': f.get('presented'),
                     'actor': f.get('actor'),
@@ -424,7 +427,7 @@ class Host:
                     ledger = alpha.execute('SELECT * FROM ledger').fetchall()
                     s['postings'] = len(ledger)
                     partial = alpha.execute('SELECT * FROM partial').fetchall()
-                    return {'initial_reads':reads,'claims':claims,'ledger':ledger,'owner':s['owner'],
+                    return {'storage':'synthetic.sqlite','initial_reads':reads,'claims':claims,'ledger':ledger,'owner':s['owner'],
                             'fence':f.get('winning_fence',12),'losing_partial_rows':partial}
                 finally:
                     alpha.close()

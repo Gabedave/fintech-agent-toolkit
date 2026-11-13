@@ -139,7 +139,8 @@ def report_projection(root, artifacts, version=2):
     journal = [value for source in artifacts if source['role'] == 'raw_tool_journal'
                for value in read_host_capture(_path(root, source['path']), lines=True)[0]]
     order = build(raw_streams, journal)
-    journal_arguments = {event['seq']: event.get('arguments') for event in journal}
+    journal_arguments = {event['seq']: event.get('arguments') for event in journal
+                         if 'seq' in event}
     source_rank = {name: index for index, (name, _) in enumerate(raw_streams)}
     for source in artifacts:
         role = source['role']
