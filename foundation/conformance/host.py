@@ -228,7 +228,7 @@ TOOLS = [
      {'resource': {'type': 'string'}}, ['resource']),
     ('record', 'Record a decision or report for the user. category: risk, expectation, finding, blocker, disposition, restriction, draft_reason, next_action, outcome. text is the concrete rationale.',
      {'category': {'type': 'string'}, 'text': {'type': 'string'}}, ['category', 'text']),
-    ('probe', 'Execute an isolated synthetic executable probe. name: semantic, controls, selector, storage, ownership.',
+    ('probe', 'Execute an isolated synthetic executable probe. name: semantic, controls, selector, storage, ownership. semantic runs a generic duplicate-row fixture in an in-memory SQLite database; it does not execute production code or a provider timeout/retry path. Its row count measures fixture-table rows, not persisted authoritative debit effects.',
      {'name': {'type': 'string'}}, ['name']),
     ('edit', 'Write the synthetic production file through the observed editing boundary.',
      {'path': {'type': 'string'}, 'content': {'type': 'string'}}, ['path', 'content']),
@@ -400,6 +400,13 @@ class Host:
                     'exit': int(rows != 1),
                     'semantic_assertion_reached': True
                 }
+                if p == 'semantic':
+                    result['scope'] = {
+                        'subject': 'generic duplicate-row fixture',
+                        'database': ':memory:',
+                        'production_code_executed': False,
+                        'provider_timeout_retry_path_executed': False
+                    }
                 if p == 'storage':
                     path = self.root / 'defect.sqlite'
                     with database(path) as db:

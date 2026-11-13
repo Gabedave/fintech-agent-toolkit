@@ -37,8 +37,9 @@ def termination_guard():
 
 
 def workbench_permissions():
-    """Expose the fixture API without changing the caller's approval policy."""
+    """Require fixture startup without changing the caller's approval policy."""
     return ['--disable', 'tool_suggest', '-c', 'web_search="disabled"',
+            '-c', 'mcp_servers.workbench.required=true',
             '-c', 'mcp_servers.workbench.enabled_tools='+json.dumps([tool[0] for tool in TOOLS])]
 
 
