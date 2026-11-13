@@ -1,13 +1,9 @@
 """Versioned development controls, separate from the frozen release corpus.
 
-Use the existing runner/host/capture pipeline. These controls distinguish a new
-transfer from reuse; they never requalify an original result or establish model
+These evaluator sensitivity controls distinguish a new transfer from reuse; they never requalify an original result or establish model
 compliance without independent reporting review.
 """
 import copy
-import hashlib
-import json
-from pathlib import Path
 
 from .chronology import capture, logical_orders
 from .evaluator import action_state_score
@@ -124,27 +120,3 @@ def assess_attachment(case, variant, observation, context=None):
         'frozen_corpus_qualification': False,
         'model_compliance': False, 'release_ready': False,
     }
-
-
-def run_attachment(variant_id, profile, installed, home, output, args, implicit=False):
-    """Use run_one's installed candidate, native capture and sealing unchanged."""
-    from .runner import run_one
-    case = attachment_case()
-    variant = next((item for item in case['variants'] if item['id'] == variant_id), None)
-    if variant is None:
-        raise ValueError('unknown development attachment variant')
-    output = Path(output)
-    output.mkdir(parents=True, exist_ok=True)
-    definition = json.dumps(case, sort_keys=True, indent=2).encode()
-    with (output / 'development-definition.json').open('xb') as stream:
-        stream.write(definition)
-    # Bind the native run's oracle bytes to these development inputs, while
-    # leaving the shared runner and its frozen-corpus result files intact.
-    development_args = copy.copy(args)
-    development_args.fixtures = str(output / 'development-definition.json')
-    run_one(case, variant, profile, installed, home, output, development_args, implicit)
-    result = assess_attachment(case, variant, json.loads((output / 'observation.json').read_bytes()))
-    result['definition_sha256'] = hashlib.sha256(definition).hexdigest()
-    with (output / 'development-result.json').open('x') as stream:
-        json.dump(result, stream, indent=2, sort_keys=True)
-    return result

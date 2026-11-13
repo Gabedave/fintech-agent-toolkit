@@ -703,6 +703,10 @@ def reconcile(args, data):
         raise ValueError('review output exists; retain original reconciliation')
     manifest_path = args.run_dir / 'raw-input-manifest.json'
     manifest = validate_manifest(manifest_path)
+    from .acceptance_versions import version_for_binding, semantic_sha256
+    version = version_for_binding(manifest['binding'], manifest['suite'])
+    if semantic_sha256(data['cases']) != version['cases_sha256']:
+        raise ValueError('review fixtures differ from manifest-bound oracle version')
     pair = next(((case, variant) for case in data['cases'] for variant in case['variants']
                  if (case['id'], variant['id']) == (manifest['case_id'], manifest['variant_id'])), None)
     if pair is None or manifest['suite'] != 'observed':
@@ -778,7 +782,9 @@ def main():
     external_fixture = args.fixtures.resolve()
     if external_fixture == candidate or candidate in external_fixture.parents:
         parser.error('--fixtures must be external to candidate')
-    args.contract_binding = 'original oracle and approved document bytes verified; independent approval remains externally recorded' if args.contract and digest(args.fixtures) == FIXTURE_SHA256 else 'unverified; shared-corpus conformance only, no full acceptance claim'
+    from .acceptance_versions import version_for_oracle
+    version = version_for_oracle(digest(args.fixtures))
+    args.contract_binding = ('fixed oracle v%d and approved document bytes verified; independent approval remains externally recorded' % version['version']) if args.contract and digest(args.fixtures) == version['oracle_sha256'] else 'unverified; shared-corpus conformance only, no full acceptance claim'
     if output == candidate or candidate in output.parents:
         parser.error('artifacts must be outside candidate repository')
     if output.exists() and any(output.iterdir()):

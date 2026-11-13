@@ -38,8 +38,13 @@ def fixed_file(name, expected):
     return read_json(path)
 
 
-def rubric():
-    return fixed_file('claim-review-rubric-v1.json', RUBRIC_SHA256)
+def rubric(oracle_sha256=None):
+    base = fixed_file('claim-review-rubric-v1.json', RUBRIC_SHA256)
+    if oracle_sha256 is not None:
+        from .acceptance_versions import version_for_oracle, amended_rubric
+        if version_for_oracle(oracle_sha256)['version'] == 2:
+            return amended_rubric(base)
+    return base
 
 
 def protocol():
@@ -51,7 +56,8 @@ def observed_binding(metadata, prompt_sha256):
     """Single concrete projection of independently captured observed identity."""
     lock = metadata.get('foundation_lock') or {}
     foundation = lock.get('foundation', {})
-    from .evaluator import CASES_SHA256
+    from .acceptance_versions import version_for_oracle
+    version = version_for_oracle(metadata['fixture_sha256'])
     return {'candidate_revision': metadata['candidate_revision'],
             'candidate_tree_sha256': metadata['candidate_tree_digest'],
             'generated_tree_sha256': lock.get('generated_tree_digest'),
@@ -61,14 +67,14 @@ def observed_binding(metadata, prompt_sha256):
             'foundation_revision': foundation.get('commit'),
             'foundation_sha256': foundation.get('digest'),
             'contract_sha256': metadata['contract_sha256'], 'oracle_sha256': metadata['fixture_sha256'],
-            'cases_semantic_sha256': CASES_SHA256,
+            'cases_semantic_sha256': version['cases_sha256'],
             'harness_revision': metadata['harness_revision'], 'harness_sha256': metadata['harness_digest'],
             'effective_model': metadata['effective_model'], 'environment_sha256': metadata['environment_sha256'],
             'prompt_sha256': prompt_sha256}
 
 
-def assigned_rows(case_id, variant_id):
-    for item in rubric()['variant_coverage']:
+def assigned_rows(case_id, variant_id, oracle_sha256=None):
+    for item in rubric(oracle_sha256)['variant_coverage']:
         if (item['case_id'], item['variant_id']) == (case_id, variant_id):
             return item['claim_rows']
     raise ValueError('unmapped observed case/variant')
@@ -267,6 +273,8 @@ def seal_run(run_dir, binding, run_id, suite, case_id, variant_id, profile_role,
     if target.exists():
         raise ValueError('raw manifest already exists; history is immutable')
     p = protocol()
+    from .acceptance_versions import version_for_binding
+    version_for_binding(binding, suite)
     if set(binding) != set(p['binding_required_fields']) or any(value is None or value == '' for value in binding.values()):
         raise ValueError('incomplete or unknown run binding')
     records = [dict(item) for item in artifacts]
@@ -311,6 +319,8 @@ def validate_manifest(manifest_path, candidate_root=None):
     root = path.parent
     manifest = read_json(path)
     p = protocol()
+    from .acceptance_versions import version_for_binding
+    version_for_binding(manifest['binding'], manifest['suite'])
     if not set(p['raw_input_manifest']['required_fields']) <= manifest.keys() or manifest['protocol_version'] != 1:
         raise ValueError('unknown or incomplete raw input manifest')
     if manifest['kind'] != 'claim-review-raw-input-manifest':
@@ -377,6 +387,10 @@ def validate_review(manifest_path, receipt_path, index_path, index_sha256,
         manifest = validate_manifest(manifest_path, candidate_root)
         root = Path(manifest_path).resolve().parent
         p = protocol()
+        from .acceptance_versions import version_for_binding
+        version = version_for_binding(manifest['binding'], manifest['suite'])
+        if manifest['suite'] == 'observed' and set(required_rows) != set(assigned_rows(manifest['case_id'], manifest['variant_id'], manifest['binding']['oracle_sha256'])):
+            raise ValueError('claim rows differ from bound frozen rubric')
         index_path = Path(index_path).resolve()
         receipt_path = Path(receipt_path).resolve()
         if candidate_root:
@@ -393,9 +407,9 @@ def validate_review(manifest_path, receipt_path, index_path, index_sha256,
         if evidence_kind not in {'actual-codex', 'sensitivity-only'}:
             raise ValueError('unknown evidence kind')
         for value in (index, receipt):
-            if value['purpose'] != purpose or value['protocol_version'] != 1 or value['freeze_sha256'] != FREEZE_SHA256:
+            if value['purpose'] != purpose or value['protocol_version'] != 1 or value['freeze_sha256'] != version['freeze_sha256']:
                 raise ValueError('untrusted review purpose/version/freeze')
-        if index['kind'] != 'claim-review-trust-index' or receipt['kind'] != 'claim-review-receipt' or receipt['rubric_sha256'] != RUBRIC_SHA256:
+        if index['kind'] != 'claim-review-trust-index' or receipt['kind'] != 'claim-review-receipt' or receipt['rubric_sha256'] != version['rubric_sha256']:
             raise ValueError('unknown review kind/rubric')
         if not index['issuer_principal'] or receipt['reviewer_principal'] not in index['authorized_reviewers']:
             raise ValueError('reviewer not enrolled by caller trust root')

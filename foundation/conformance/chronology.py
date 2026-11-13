@@ -313,7 +313,7 @@ def logical_orders(variant, observation, entries, evidence):
     def positions(term):
         seqs = sorted({seq for name, seq in entries if matches(name, term)})
         if term == 'hosted_readback':
-            wanted = variant['facts'].get('attachment', {})
+            wanted = variant['facts'].get('upload_result', variant['facts'].get('attachment', {}))
             seqs = [seq for seq in seqs if events[seq]['result'].get('uploaded')
                     and all(events[seq]['result'].get(key) == wanted.get(key)
                             for key in ('revision', 'image', 'url', 'label'))]

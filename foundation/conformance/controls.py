@@ -61,12 +61,13 @@ def control_observation(case, variant, root):
             call('resources', {'action': 'track', 'path': f['explicit_user_storage_exception']['path']})
         else:
             inspect('artifacts')
-            a = f['attachment']
+            a = f.get('upload_result', f['attachment'])
             gaps = [k for k in ('image', 'url', 'revision', 'label', 'rendering_check', 'access_check') if not a.get(k)]
             if gaps:
                 note('finding', 'Evidence gap: missing ' + ', '.join(gaps))
             else:
-                for action in ('upload', 'read_attachment', 'verify_attachment'):
+                actions = ('read_attachment', 'verify_attachment') if 'fake_upload' in variant['forbidden_observed_events'] else ('upload', 'read_attachment', 'verify_attachment')
+                for action in actions:
                     call('host', {'action': action})
                 call(
                     'host',
@@ -189,7 +190,7 @@ REPORT_SENSITIVITY_CASES += [
 
 
 
-def sensitivity_review(case, variant, observation, directory, dispositions=None):
+def sensitivity_review(case, variant, observation, directory, dispositions=None, oracle_sha256=None):
     """Manufacture explicitly TEST-ONLY receipts to exercise the verifier.
 
     These do not establish semantic review or candidate/model compliance. The
@@ -199,8 +200,7 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None)
     import hashlib
     import json
     from pathlib import Path
-    from .claim_review import (FREEZE_SHA256, RUBRIC_SHA256, artifact, assigned_rows,
-                               protocol, seal_run, sha256)
+    from .claim_review import artifact, assigned_rows, protocol, seal_run, sha256
     from .evaluator import normalized, forbidden, state_checks
     root = Path(directory)
     root.mkdir()
@@ -230,7 +230,16 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None)
     save('final-files.json', observation.get('final_files', {}))
     save('chronology.json', [{'seq': e['seq'], 'tool': e['tool']} for e in observation['events']])
     save('observation.json', observation)
+    from .acceptance_versions import version_for_oracle, V2_PUBLIC_ORACLE_SHA256, amended_cases
+    from .evaluator import PUBLIC_FIXTURE_SHA256, load_cases
+    if oracle_sha256 is None and case['id'] == '06-review-evidence':
+        approved = next(c for c in amended_cases(load_cases()['cases']) if c['id'] == case['id'])
+        if case == approved:
+            oracle_sha256 = V2_PUBLIC_ORACLE_SHA256
+    version = version_for_oracle(oracle_sha256 or PUBLIC_FIXTURE_SHA256)
     binding = {name: 'sensitivity-only-' + name for name in protocol()['binding_required_fields']}
+    binding.update(oracle_sha256=oracle_sha256 or PUBLIC_FIXTURE_SHA256,
+                   cases_semantic_sha256=version['cases_sha256'], contract_sha256=version['contract_sha256'])
     artifacts = [artifact(root, name, role, path) for name, role, path in (
         ('stream', 'raw_process_stream', 'stdout.jsonl'), ('journal', 'raw_tool_journal', 'journal.jsonl'),
         ('prompt', 'prompt', 'prompt.json'), ('initial', 'initial_state', 'initial.json'),
@@ -251,7 +260,7 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None)
     if any(item['kind'] == 'ambiguous' for item in interpret_readiness(observation.get('final_text', ''))):
         dispositions.setdefault('overall_report_consistency', 'uncertain')
     rows = []
-    for key in assigned_rows(case['id'], variant['id']):
+    for key in assigned_rows(case['id'], variant['id'], binding['oracle_sha256']):
         field, _, name = key.partition('::')
         disposition = 'confirmed'
         chosen = surface
@@ -278,14 +287,14 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None)
     manifest_digest = sha256(manifest_path.read_bytes())
     receipt = {'kind': 'claim-review-receipt', 'protocol_version': 1, 'purpose': 'sensitivity-only',
                'review_id': 'test-review', 'batch_id': 'test-batch', 'reviewer_principal': 'test-reviewer',
-               'freeze_sha256': FREEZE_SHA256, 'rubric_sha256': RUBRIC_SHA256,
+               'freeze_sha256': version['freeze_sha256'], 'rubric_sha256': version['rubric_sha256'],
                'runs': [{'run_id': manifest['run_id'], 'suite': 'observed', 'case_id': case['id'],
                          'variant_id': variant['id'], 'profile_role': 'synthetic-adopter',
                          'binding': binding, 'input_manifest_sha256': manifest_digest, 'predicate_results': rows}]}
     receipt_path = save('test-receipt.json', receipt)
     receipt_digest = sha256(receipt_path.read_bytes())
     index = {'kind': 'claim-review-trust-index', 'protocol_version': 1, 'purpose': 'sensitivity-only',
-             'batch_id': 'test-batch', 'freeze_sha256': FREEZE_SHA256, 'issuer_principal': 'test-only-orchestrator',
+             'batch_id': 'test-batch', 'freeze_sha256': version['freeze_sha256'], 'issuer_principal': 'test-only-orchestrator',
              'authorized_reviewers': ['test-reviewer'], 'attestations': [{
                  'review_id': 'test-review', 'reviewer_principal': 'test-reviewer', 'receipt_sha256': receipt_digest,
                  'batch_id': 'test-batch', 'run_manifest_sha256s': [manifest_digest],
@@ -301,7 +310,7 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None)
             'index_sha256': sha256(index_path.read_bytes())}
 
 
-def sensitivity_score(case, variant, observation, dispositions=None):
+def sensitivity_score(case, variant, observation, dispositions=None, oracle_sha256=None):
     """Test harness entrypoint; synthetic receipts can never pass actual runs."""
     import tempfile
     from pathlib import Path
@@ -309,5 +318,5 @@ def sensitivity_score(case, variant, observation, dispositions=None):
     if observation.get('process', {}).get('kind') != 'sensitivity-only' or not observation.get('events'):
         return score(case, variant, observation)
     with tempfile.TemporaryDirectory(prefix='claim-sensitivity-') as temp:
-        context = sensitivity_review(case, variant, observation, Path(temp) / 'sealed', dispositions)
+        context = sensitivity_review(case, variant, observation, Path(temp) / 'sealed', dispositions, oracle_sha256=oracle_sha256)
         return score(case, variant, observation, context)
