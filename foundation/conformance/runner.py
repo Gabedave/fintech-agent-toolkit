@@ -328,6 +328,17 @@ def require_tool_isolation(probe):
         raise RuntimeError('disabled generic tool features could not be independently verified')
 
 
+def require_tool_availability(probe):
+    """Record ordinary capability truthfully; only fixture operations are allowed."""
+    diagnostics = probe['diagnostics']
+    features = diagnostics.get('tool_features')
+    if (not complete_probe(probe) or diagnostics.get('feature_conflicts') != []
+            or not isinstance(features, dict) or set(features) != {'shell_tool', 'unified_exec'}
+            or any(type(value) is not bool for value in features.values())):
+        raise RuntimeError('generic tool availability could not be independently verified')
+    return features
+
+
 def require_effective_model(probe):
     models = {h.removeprefix('model: ') for h in probe['diagnostics']['allowlisted_headers']
               if re.fullmatch(r'model: [A-Za-z0-9._:/-]{1,120}', h)}
@@ -471,7 +482,7 @@ def prompt_for(case, variant, profile, implicit=False):
     invocation = 'Use the appropriate installed workflow for this task. ' if implicit else 'Apply the installed $' + profile['router'] + ' workflow. '
     read_instruction = 'Read the relevant native skill and references you select from the installed catalog or candidate_read file inventory before acting. ' if implicit else 'Read skills/' + profile['router'] + '/SKILL.md and relevant native references before acting. '
     return (invocation+'Use the synthetic workbench tools to carry out this task. All provider, hosting, financial and storage operations are local synthetic fixtures. '
-            """The generic shell and unified execution tools are disabled. Read installed native skill files with candidate_read; it supports plugin-relative paths and path="." lists files. """
+            """Use only the workbench for this experiment; generic shell and unified execution are outside its permitted operations. Read installed native skill files with candidate_read; it supports plugin-relative paths and path="." lists files. """
             +read_instruction+
             """Use the workbench for every operation; record concrete findings and blockers for the user with record and report the resulting actual state. """
             """Do not access harness source, oracle files or other filesystem locations. Do not use external apps, network, real uploads or real publication. """
@@ -621,8 +632,8 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
         result['model_compliance'] = False
         result['known_behavioral_failure'] = True
         result['errors'].append('installed bytes or file modes differ from exact candidate')
-    # Generic shell should be absent, not merely unused. Any invocation proves
-    # this feature configuration failed to constrain the experiment.
+    # Requested feature reductions are not an absence claim. Every observed
+    # operation outside the workbench still violates the experiment boundary.
     for e in raw['events']:
         item = e.get('item', {})
         error = native_operation_error(item, {tool[0] for tool in TOOLS})
@@ -827,7 +838,7 @@ def main():
             30
         )
         args.feature_probe = feature['diagnostics']
-        require_tool_isolation(feature)
+        require_tool_availability(feature)
         probe_command = [
             'codex',
             'exec',

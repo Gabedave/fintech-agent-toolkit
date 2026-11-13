@@ -270,9 +270,10 @@ Each actual run creates and removes a private `CODEX_HOME`, preserving ordinary
 keys default to `on-request` / `auto_review`; explicit values win. The runner
 links authentication without reading or copying it, installs only the exact
 candidate, and verifies the preserved policy before and after each task. It does
-not ignore rules or grant per-tool approval. Generic shell/unified execution,
-web search and tool suggestion remain disabled for fixture isolation; ordinary
-approval decisions still apply to synthetic tools. Provider settings are excluded.
+not ignore rules or grant per-tool approval. The runner requests generic-tool feature reductions and records actual CLI
+availability; it does not claim unavailable tools from requested flags alone.
+Every actual non-workbench tool attempt still fails. Ordinary approval decisions
+apply to synthetic tools. Provider settings are excluded.
 `candidate_read` returns actual installed skill/reference bytes inside that plugin.
 The implicit task names no router or skill path. Unexpected tools fail.
 

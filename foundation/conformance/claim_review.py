@@ -188,8 +188,19 @@ def report_projection(root, artifacts, version=2):
                 arguments = json.loads(arguments) if encoded else arguments
                 # Project unmatched attempts too; a denial does not erase an authored assertion.
                 matched = any(call['source'] == source['artifact_id'] and call['end'] == line for call in order['calls'].values())
+                def same_completion(event):
+                    other = event.get('item', {})
+                    other_arguments = other.get('arguments', {})
+                    if isinstance(other_arguments, str):
+                        try:
+                            other_arguments = json.loads(other_arguments)
+                        except json.JSONDecodeError:
+                            return False
+                    return (event.get('type') == 'item.completed'
+                            and all(other.get(key) == item.get(key) for key in ('id', 'type', 'server', 'tool'))
+                            and other_arguments == arguments)
                 completed = value.get('type') == 'item.started' and item.get('id') is not None and any(
-                    event.get('type') == 'item.completed' and event.get('item', {}).get('id') == item['id'] for _, event in values)
+                    end_line > line and same_completion(event) for end_line, event in values)
                 if arguments.get('action') == 'update_evidence' and not matched and not completed:
                     path = ['item', 'arguments'] + (['@json'] if encoded else []) + ['fields']
                     for text, field, encoding in evidence_leaves(arguments.get('fields', {}), path):
