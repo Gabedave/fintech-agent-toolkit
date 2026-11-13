@@ -35,6 +35,11 @@ class ReleaseReviewQuality(unittest.TestCase):
             calls.append((command, label))
             self.assertGreater(kwargs.get("timeout_seconds", 0), 0)
             if "evaluate_behavior.py" in " ".join(command):
+                evidence_root = Path(command[command.index("--evidence-dir") + 1])
+                manifest = release_smoke.json.loads((evidence_root / "run.json").read_text())
+                self.assertEqual(manifest["bindings"]["candidate_commit"], "candidate-commit")
+                self.assertEqual(manifest["bindings"]["fixture_commit"], "backend-commit")
+                self.assertNotEqual(evidence_root, state[-1])
                 scenario_count = len(release_smoke.json.loads(
                     release_smoke.SCENARIOS.read_text()
                 )["scenarios"])
@@ -47,6 +52,8 @@ class ReleaseReviewQuality(unittest.TestCase):
                     ),
                 )
             if "evaluate_review_quality.py" in " ".join(command):
+                self.assertIn("--evidence-dir", command)
+                self.assertTrue(kwargs.get("output_path"))
                 self.assertTrue(kwargs.get("report_stdout_on_failure"))
                 pair_count = len(release_smoke.json.loads(
                     release_smoke.REVIEW_CASES.read_text()
@@ -76,7 +83,8 @@ class ReleaseReviewQuality(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             auth = Path(directory) / "synthetic-auth.json"
             auth.write_text("{}")
-            argv = ["release_smoke.py", "--repo", directory, "--auth-file", str(auth)]
+            argv = ["release_smoke.py", "--repo", str(Path(directory) / "fixture"), "--auth-file", str(auth),
+                    "--evidence-dir", str(Path(directory) / "evidence")]
             if scenarios:
                 argv.append("--development")
                 for scenario in scenarios:
@@ -85,7 +93,7 @@ class ReleaseReviewQuality(unittest.TestCase):
                 argv.append("--review-quality")
             if verbose_quality:
                 argv.append("--verbose-review-output")
-            with mock.patch.object(sys, "argv", argv), mock.patch.object(
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(Path(directory) / "source")}), mock.patch.object(sys, "argv", argv), mock.patch.object(
                 release_smoke, "run", side_effect=fake_run
             ), mock.patch.object(
                 release_smoke, "git_output", side_effect=fake_git
@@ -118,7 +126,7 @@ class ReleaseReviewQuality(unittest.TestCase):
         ids = [case["id"] for case in release_smoke.json.loads(release_smoke.SCENARIOS.read_text())["scenarios"]]
         for extra in (["--scenario", ids[0]], ["--development"],
                       ["--development", "--scenario", "unknown-id"]):
-            with self.subTest(extra=extra), mock.patch.object(sys, "argv", ["release_smoke.py", "--repo", ".", *extra]), mock.patch.object(release_smoke, "run") as run, mock.patch.object(release_smoke, "git_output") as git:
+            with self.subTest(extra=extra), mock.patch.object(sys, "argv", ["release_smoke.py", "--repo", ".", "--evidence-dir", "/tmp/evidence-test", *extra]), mock.patch.object(release_smoke, "run") as run, mock.patch.object(release_smoke, "git_output") as git:
                 with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                     release_smoke.main()
                 run.assert_not_called()
@@ -148,6 +156,12 @@ class ReleaseReviewQuality(unittest.TestCase):
         _, output = self.run_release(True)
         self.assertIn("Review-quality pilot: 4/4 defects reproduced", output)
         self.assertIn("Review-quality pilot passed (8/8 cases)", output)
+        self.assertNotIn('"review"', output)
+
+    def test_compact_success_keeps_failed_native_process_disposition(self):
+        note = "Native process: case: usable result scored, native process nonzero; capture completeness unverified"
+        _, output = self.run_release(True, quality_output=QUALITY_OUTPUT + "\n" + note)
+        self.assertIn(note, output)
         self.assertNotIn('"review"', output)
 
     def test_verbose_release_can_print_complete_successful_reviews(self):
@@ -182,7 +196,7 @@ class ReleaseReviewQuality(unittest.TestCase):
             auth.write_text("{}")
             argv = [
                 "release_smoke.py", "--repo", directory,
-                "--auth-file", str(auth), "--verbose-review-output",
+                "--auth-file", str(auth), "--verbose-review-output", "--evidence-dir", str(Path(directory) / "evidence"),
             ]
             with mock.patch.object(sys, "argv", argv), self.assertRaises(SystemExit):
                 release_smoke.main()

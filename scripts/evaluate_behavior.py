@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import native_evidence
+
 from process_control import stop_process_group, termination_guard
 
 
@@ -86,7 +88,12 @@ User request:
 """
 
 
-def run_command(command: list[str], input_text: str, timeout_seconds: float):
+def run_command(command: list[str], input_text: str, timeout_seconds: float, *, capture=None):
+    if capture is not None:
+        returncode, stdout, stderr, timed_out = capture.run(command, input_text, timeout_seconds)
+        if timed_out:
+            raise BehaviorTimeout
+        return returncode, stdout, stderr
     with termination_guard():
         process = subprocess.Popen(
             command,
@@ -122,13 +129,14 @@ def read_structured_result(output: Path, scenario_id: str) -> dict:
 
 
 def run_scenario(repo: Path, scenario: dict, model: str | None,
-                 timeout_seconds: int) -> dict:
+                 timeout_seconds: int, *, evidence_dir=None) -> dict:
     with tempfile.TemporaryDirectory(prefix="fintech-behavior-") as temp_dir:
         output = Path(temp_dir) / "result.json"
         command = [
             "codex",
             "exec",
             "--ephemeral",
+            "--json",
             "--sandbox",
             "read-only",
             "--output-schema",
@@ -141,15 +149,22 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
         if model:
             command.extend(["--model", model])
         command.append("-")
+        prompt = build_prompt(scenario["prompt"])
+        capture = native_evidence.NativeAttempt(
+            evidence_dir, "behavior-" + scenario["id"], command, prompt, SCHEMA, model,
+            {"scenario": scenario, "fixture": str(repo)}, output,
+        ) if evidence_dir is not None else None
         try:
             returncode, _, stderr = run_command(
-                command,
-                build_prompt(scenario["prompt"]),
-                timeout_seconds,
+                command, prompt, timeout_seconds,
+                **({"capture": capture} if capture else {}),
             )
         except BehaviorTimeout as error:
             try:
-                return read_structured_result(output, scenario["id"])
+                result = read_structured_result(output, scenario["id"])
+                if capture:
+                    capture.mark_usable()
+                return result
             except BehaviorEvaluationError as result_error:
                 raise BehaviorEvaluationError(
                     f"{scenario['id']}: Codex smoke run timed out after "
@@ -164,6 +179,8 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
                     f"{stderr.strip()}; {result_error}"
                 ) from result_error
             raise
+        if capture:
+            capture.mark_usable()
         # A complete structured decision is usable even if the CLI reports a
         # later operational failure. Score it exactly once and never replace it.
         return result
@@ -176,16 +193,17 @@ def run_scenario_with_replacement(
     timeout_seconds: int,
     *,
     replacement_available: bool,
+    evidence_dir=None,
 ) -> tuple[dict | None, int, bool, BehaviorEvaluationError | None]:
     """Return one usable result, allowing one fresh operational replacement."""
     try:
-        return run_scenario(repo, scenario, model, timeout_seconds), 1, False, None
+        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir), 1, False, None
     except BehaviorEvaluationError as first_error:
         if not replacement_available:
             return None, 1, False, first_error
         first_error_text = str(first_error)
     try:
-        return run_scenario(repo, scenario, model, timeout_seconds), 2, True, None
+        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir), 2, True, None
     except BehaviorEvaluationError as replacement_error:
         error = BehaviorEvaluationError(
             f"initial attempt failed: {first_error_text}; "
@@ -199,6 +217,7 @@ def evaluate_scenarios(
     scenarios: list[dict],
     model: str | None,
     timeout_seconds: int,
+    *, evidence_dir=None,
 ) -> tuple[list[str], list[str], int, int]:
     failures: list[str] = []
     advisories: list[str] = []
@@ -211,6 +230,7 @@ def evaluate_scenarios(
             model,
             timeout_seconds,
             replacement_available=replacements < MAX_OPERATIONAL_REPLACEMENTS,
+            evidence_dir=evidence_dir,
         )
         if replacement_used:
             replacements += 1
@@ -783,6 +803,7 @@ def main() -> None:
         action="store_true",
         help="Validate smoke fixtures without invoking Codex.",
     )
+    parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--scenario", action="append", help="Run only this scenario ID.")
     parser.add_argument("--model", help="Optional Codex model override.")
     parser.add_argument("--timeout-seconds", type=int, default=120)
@@ -799,6 +820,19 @@ def main() -> None:
     if args.repo is None:
         fail("--repo is required unless --check is used")
 
+    if args.evidence_dir is None:
+        parser.error("--evidence-dir is required for live runs")
+    try:
+        evidence_base = native_evidence.validate_location(args.evidence_dir, ROOT, args.repo)
+    except ValueError as error:
+        parser.error(str(error))
+    evidence_dir = native_evidence.create_run(evidence_base, "behavior", {
+        "fixture": native_evidence.git_identity(args.repo), "model": args.model,
+        "candidate": native_evidence.git_identity(ROOT),
+        "evaluator_sha256": native_evidence.digest(Path(__file__).read_bytes()),
+        "suite_sha256": native_evidence.digest(SCENARIOS.read_bytes()),
+    })
+    print(f"Native evidence: {evidence_dir}", flush=True)
     repo = args.repo.resolve()
     validate_backend_repo(repo)
 
@@ -821,8 +855,10 @@ def main() -> None:
         if not selected or scenario["id"] in selected
     ]
     failures, advisories, replacements, usable_results = evaluate_scenarios(
-        repo, scenarios, args.model, args.timeout_seconds
+        repo, scenarios, args.model, args.timeout_seconds, evidence_dir=evidence_dir
     )
+    for process_note in native_evidence.unsuccessful_usable_processes(evidence_dir):
+        print(f"Native process: {process_note}; capture completeness unverified")
     print(
         f"Fintech behavioural smoke: {usable_results}/{len(scenarios)} usable "
         f"results; {replacements}/{MAX_OPERATIONAL_REPLACEMENTS} operational "

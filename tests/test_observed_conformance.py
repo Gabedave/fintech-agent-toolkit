@@ -131,10 +131,11 @@ class ObservedConformanceTests(unittest.TestCase):
         self.assertNotIn('unique-router-name', p)
         self.assertNotIn('SKILL.md', p)
 
-    def test_disposable_environment_does_not_inherit_provider_keys_or_real_home(self):
+    def test_disposable_environment_preserves_home_without_provider_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
             e = safe_env(Path(tmp))
-            self.assertEqual(tmp, e['HOME'])
+            import os
+            self.assertEqual(os.environ.get('HOME', str(Path.home())), e['HOME'])
             self.assertEqual(tmp, e['CODEX_HOME'])
             self.assertEqual({'PATH', 'HOME', 'CODEX_HOME', 'TMPDIR', 'LANG', 'PYTHONDONTWRITEBYTECODE'}, set(e))
 
@@ -1108,3 +1109,113 @@ class RequiredObligationCoverageRegressionTests(unittest.TestCase):
                 result = score(case, variant, observation, context)
                 self.assertNotEqual('pass', result['status'])
                 self.assertNotEqual('eligible', result['action_state_result']['status'])
+
+
+class ReleaseHarnessRegressionTests(unittest.TestCase):
+    def test_diagnostic_error_is_not_an_operation_but_unknown_and_denied_tools_are(self):
+        from foundation.conformance.observation_capture import native_operation_error
+        from foundation.conformance.host import TOOLS
+        allowed = {tool[0] for tool in TOOLS}
+        self.assertIsNone(native_operation_error({'type': 'error', 'message': 'DNS unavailable'}, allowed))
+        for item in ({'type': 'future_unsafe_operation'}, {'type': 'command_execution', 'error': 'denied'},
+                     {'type': 'mcp_tool_call', 'server': 'outside', 'tool': 'host', 'error': 'denied'}):
+            self.assertIsNotNone(native_operation_error(item, allowed))
+
+    def test_actual_diagnostic_timeout_stays_incomplete(self):
+        from foundation.conformance.evaluator import action_state_score
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'journal.jsonl').write_bytes(b'')
+            stream = root / 'stdout.jsonl'
+            stream.write_text(json.dumps({'type': 'item.completed', 'item': {'type': 'error', 'message': 'DNS unavailable'}}) + '\n')
+            (root / 'state.json').write_text('{}')
+            case = load_cases()['cases'][7]
+            observation = {'events': [], 'initial': {}, 'final': {}, 'initial_files': {}, 'final_files': {},
+                           'process': {'kind': 'actual-codex', 'stdout_sha256': hashlib.sha256(stream.read_bytes()).hexdigest(),
+                                       'timed_out': True, 'operational_error': 'no usable result'},
+                           'observer_paths': {'journal': str(root / 'journal.jsonl'), 'stdout': str(stream), 'state': str(root / 'state.json')}}
+            result = action_state_score(case, case['variants'][0], observation)
+            self.assertEqual('incomplete', result['status'], result)
+            self.assertFalse(result['known_behavioral_failure'])
+
+    def test_authoritative_rows_ignore_diagnostic_table_but_detect_fence_and_ledger(self):
+        from foundation.conformance.host import database
+        from foundation.conformance.observation_capture import authoritative_snapshot, authoritative_unchanged
+        from foundation.conformance.state_evidence import assess_states
+        from foundation.conformance.evaluator import state_checks
+        for mutation, expected in [('CREATE TABLE partial(actor TEXT)', True),
+                                   ("UPDATE ledger SET amount=24", False),
+                                   ("UPDATE ownership SET fence=12", False),
+                                   ("INSERT INTO ledger VALUES('other', 23)", False)]:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                state = initialize(root, {'authoritative': {'owner': 'worker-alpha', 'fence': 11}})
+                path = root / 'synthetic.sqlite'
+                with database(path) as db:
+                    db.execute("INSERT INTO ledger VALUES('existing', 23)")
+                initial = authoritative_snapshot(path)
+                before = files(root)
+                with database(path) as db:
+                    db.execute(mutation)
+                observation = {'initial': state, 'final': copy.deepcopy(state), 'initial_files': before,
+                               'final_files': files(root), 'authoritative_snapshots': {'initial': initial, 'final': authoritative_snapshot(path)}}
+                self.assertEqual(expected, authoritative_unchanged(observation))
+                predicate = 'Authoritative row and ledger unchanged.'
+                variant = {'facts': {}, 'final_state_assertions': [predicate]}
+                checks = state_checks(variant, observation)
+                errors, pending = assess_states(variant, observation, checks)
+                self.assertEqual(expected, not errors and not pending)
+                observation['authoritative_snapshots']['final']['database_sha256'] = 'substituted'
+                self.assertIsNone(authoritative_unchanged(observation))
+                observation['authoritative_snapshots']['final'] = {'complete': True, 'tables': {}}
+                self.assertIsNone(authoritative_unchanged(observation))
+                del observation['authoritative_snapshots']
+                self.assertIsNone(authoritative_unchanged(observation))
+
+    def test_projection_v2_preserves_typed_authored_denied_fields_and_legacy_scope(self):
+        from foundation.conformance.claim_review import artifact, report_projection
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fields = {'attachment': {'url': 'fake://café/☕', 'revision': None, 'verified': False}, 'count': 2}
+            args = {'action': 'update_evidence', 'fields': fields}
+            event = {'seq': 1, 'tool': 'host', 'arguments': args, 'result': {'updated': True}}
+            correction = {'seq': 2, 'tool': 'host', 'arguments': {'action': 'update_evidence', 'fields': {'attachment': {'url': None}}}, 'result': {'updated': True}}
+            stream = [
+                {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'Before'}},
+                {'type': 'item.completed', 'item': {'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'host', 'arguments': args, 'result': {'content': [{'type': 'text', 'text': json.dumps(event['result'])}]}}},
+                {'type': 'item.completed', 'item': {'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'host', 'arguments': json.dumps({'action': 'update_evidence', 'fields': {'attachment': {'url': 'fake://denied'}}}), 'error': {'message': 'denied'}}},
+                {'type': 'item.completed', 'item': {'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'host', 'arguments': correction['arguments'], 'result': {'content': [{'type': 'text', 'text': json.dumps(correction['result'])}]}}},
+                {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'After'}}]
+            (root / 'journal.jsonl').write_text(json.dumps(event) + '\n' + json.dumps(correction) + '\n')
+            (root / 'stdout.jsonl').write_text(''.join(json.dumps(item) + '\n' for item in stream))
+            artifacts = [artifact(root, 'journal', 'raw_tool_journal', 'journal.jsonl'), artifact(root, 'stream', 'raw_process_stream', 'stdout.jsonl')]
+            rows = report_projection(root, artifacts)
+            self.assertEqual(['Before', 'null', 'fake://café/☕', 'false', '2', 'fake://denied', 'null', 'After'], [row['text'] for row in rows])
+            self.assertEqual(['arguments', 'fields', 'attachment', 'url'], rows[2]['source_field'])
+            self.assertEqual('decoded-string', rows[2]['text_encoding'])
+            self.assertEqual('json-value', rows[1]['text_encoding'])
+            self.assertEqual(1, rows[2]['event_seq'])
+            self.assertEqual('denied-pr-evidence', rows[-3]['category'])
+            self.assertIn('@json', rows[-3]['source_field'])
+            self.assertEqual(2, rows[-2]['event_seq'])
+            self.assertEqual(['Before', 'After'], [row['text'] for row in report_projection(root, artifacts, version=1)])
+
+    def test_actual_database_snapshot_requires_retained_source_and_rejects_substitution(self):
+        import shutil
+        from foundation.conformance.observation_capture import authoritative_snapshot, authoritative_unchanged
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initialize(root, {'authoritative': {'owner': 'worker-alpha', 'fence': 11}})
+            source = root / 'synthetic.sqlite'
+            paths = {phase: root / (phase + '.sqlite') for phase in ('initial', 'final')}
+            for path in paths.values():
+                shutil.copyfile(source, path)
+            inventory = files(root)
+            observation = {'process': {'kind': 'actual-codex'}, 'initial_files': inventory, 'final_files': inventory,
+                           'authoritative_snapshots': {phase: authoritative_snapshot(path) for phase, path in paths.items()},
+                           'observer_paths': {'authoritative_databases': paths}}
+            self.assertTrue(authoritative_unchanged(observation))
+            observation['authoritative_snapshots']['final']['tables']['ownership']['rows'][0][2] = 42
+            self.assertIsNone(authoritative_unchanged(observation))
+            del observation['observer_paths']['authoritative_databases']['initial']
+            self.assertIsNone(authoritative_unchanged(observation))

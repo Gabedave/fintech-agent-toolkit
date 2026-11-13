@@ -58,6 +58,8 @@ Keep the result compact, but always retain:
 
 Use one concise row/sentence per confirmed or not-applicable item; expand failed, partial or unverified evidence and blockers. Low/medium-risk reviews may combine common fields. High-risk or blocker-repair reviews must show invariants and reconciliation. Restate only changed evidence/dispositions and current snapshot identity during reconciliation.
 
+An initial blocking finding has reconciliation `pending`: remediation or an evidence response has not yet been reviewed. After reconsidering that response, use `resolved-by-implementation`, `resolved-by-evidence`, `still-blocking`, `downgraded`, or `human-decision-required` as supported. Reconciliation records this sequence independently of the candidate's readiness verdict.
+
 Report `INDEPENDENT REVIEW: PERFORMED` only for a context-isolated reviewer; otherwise report `INDEPENDENT REVIEW: NOT PERFORMED`. The current context-isolated reviewer counts as an attempt even when it must not delegate a replacement reviewer. On an initial pass, report `CONSENSUS: ACHIEVED` only for a ready candidate without unresolved blockers, `CONSENSUS: NOT ACHIEVED` for a blocking or incomplete result, and `CONSENSUS: HUMAN DECISION REQUIRED` only for an actual product-intent or risk-tolerance dispute. End with exactly one of `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.
 
 Apply the applicable toolkit gates in [Final verification](../SKILL.md#final-verification). Missing, failed or incomplete cases cannot pass. Keep product regressions in owning repositories and synthetic evaluation fixtures in the toolkit.

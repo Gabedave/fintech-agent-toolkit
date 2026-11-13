@@ -3,7 +3,7 @@
 1. Run the deterministic validation commands in the README and the official Codex skill and plugin validators.
 2. Review the complete diff for company identifiers, private URLs, secrets, customer data, and product-specific commands.
 3. Update `plugin_version` and the adapter revision in `profiles/gabedave.json`, then regenerate from the reviewed foundation pin. Do not hand-edit the generated manifest. Summarize material changes in the pull request.
-4. After committing the candidate, create a synthetic example workspace with `python3 scripts/prepare_example_workspace.py /absolute/path/to/new-fixture`. Run `python3 scripts/release_smoke.py --repo /absolute/path/to/new-fixture/backend` against that clean checkout. Add `--review-quality` when review guidance changes. The example tests routing only; it does not prove product behavior.
+4. After committing the candidate, create a synthetic example workspace with `python3 scripts/prepare_example_workspace.py /absolute/path/to/new-fixture`. Run `python3 scripts/release_smoke.py --evidence-dir /absolute/path/to/private-evidence --repo /absolute/path/to/new-fixture/backend` against that clean checkout. Add `--review-quality` when review guidance changes. The example tests routing only; it does not prove product behavior.
 5. When separately authorized, publish a reviewed tag. Consumers install a reviewed release only with installation authority and start a new Codex task. Passing checks alone grants no merge or deployment authority.
 
 Model-backed results are evidence for the tested version and example only. They do not prove an adopting product's runtime behavior; each product repository must provide its own verification.
@@ -74,7 +74,7 @@ new-format coverage nor a waiver.
 For a bounded change with known impact, select affected cases and named regression controls:
 
 ```sh
-python3 scripts/release_smoke.py --development --scenario <affected-id> --scenario <control-id> --repo /path/to/clean/fixture
+python3 scripts/release_smoke.py --evidence-dir /absolute/path/to/private-evidence --development --scenario <affected-id> --scenario <control-id> --repo /path/to/clean/fixture
 ```
 
 Record why the selection covers the changed behavior. The command retains candidate/fixture identity, disposable-state setup and per-call limits, and prints selected and omitted IDs. It does not authorize installation or external model use. Use only a supported, authorized disposable route; stop if isolation cannot be established. A targeted pass is development evidence, not team-ready or release qualification. Full release checks, broad/uncertain routing-change coverage, required review-quality pilots, adverse history and unresolved qualification gaps remain mandatory.

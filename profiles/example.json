@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "plugin_name": "harbor-engineering",
-  "plugin_version": "0.1.14",
+  "plugin_version": "0.1.16",
   "marketplace": "harbor-example",
   "company": "Harbor Example",
   "router": "harbor-mode",
   "router_title": "Harbor Mode",
   "audience": "Harbor",
   "repository_url": "https://example.com/harbor-example/engineering",
-  "adapter_revision": "1.0.3",
+  "adapter_revision": "1.0.5",
   "discovery": {
     "backend": [
       "backend",
