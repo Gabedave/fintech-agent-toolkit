@@ -19,3 +19,9 @@ The prior workflow improvements remain: one inspectable authorization ledger wit
 ## Probe scope and required fixture startup
 
 The semantic probe now names its isolated in-memory duplicate-row fixture and explicitly states that it does not execute production code or the provider timeout/retry path. Existing row counts and gate results remain unchanged. The observed runner requires the workbench MCP server at startup; a pending optional server can otherwise be omitted by Codex 0.151.0. This changes neither permissions nor acceptance criteria. Historical overclaims and the completed no-tool report remain failures; startup hardening does not establish the cause of that historical report. New live verification is required for this revision.
+
+## Executable named pre-edit fixture
+
+The available `test_unknown_outcome_replay` now executes the exact trusted synthetic settlement baseline against a local provider that commits before losing its first response. The retry commits a second debit; a reopened file-backed SQLite connection independently reads both effects. Returned evidence names the test, source hash and synthetic scope. The probe compares captured source bytes with the trusted baseline before execution and refuses edited or unrecognized source, so arbitrary proposed repairs cannot execute in the host or be reported as verified. The generic probe remains scoped separately.
+
+This repairs missing executable evidence without changing the frozen task, scoring or review criteria. The first variant requires the named pre-edit test and makes a production write optional; it does not require a verified repaired implementation. All earlier incomplete runs remain retained. The F6-37 test golden is updated only after comparing its generated raw stream: the denied note and chronology remain byte-identical, while the probe result now includes real execution and scope. No new dependency, permission grant or plugin workflow gate is added.

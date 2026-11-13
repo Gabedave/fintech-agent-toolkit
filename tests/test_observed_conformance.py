@@ -1052,7 +1052,9 @@ class RequiredObligationCoverageRegressionTests(unittest.TestCase):
             plan = next(row for row in PLANS if row['id'] == 'F6-37')
             case, variant, observation, context, manifest = fixture(plan, Path(tmp) / 'fresh')
             self.assertEqual([1], emissions(observation))
-            self.assertEqual('23e44b15027238a84caae3e57cb8ec1b179511b15afe0041575f0e49e4347699',
+            # The current probe includes its executed source and synthetic scope;
+            # denied-note bytes and the optional-emission chronology stay intact.
+            self.assertEqual('e8387254213eee0685d23cf0ea2ff8ad78ea40f376569375594f66a3ccfdf4f2',
                              hashlib.sha256((manifest.parent / 'stdout.jsonl').read_bytes()).hexdigest())
             result = score(case, variant, observation, context)
             self.assertEqual('pass', result['status'], result['errors'])

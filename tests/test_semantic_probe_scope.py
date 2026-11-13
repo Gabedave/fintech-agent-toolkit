@@ -5,13 +5,14 @@ import sqlite3
 import tempfile
 import unittest
 
-from foundation.conformance import load_cases
 from foundation.conformance.host import Host, TOOLS, initialize
 
 
 class SemanticProbeScopeTests(unittest.TestCase):
     def facts(self):
-        return load_cases()['cases'][0]['variants'][0]['facts']
+        # Unnamed probes retain the generic fixture independently of the named
+        # timeout/retry reproduction available in the first case.
+        return {'test_result': {'semantic_assertion_reached': True}}
 
     def authoritative_rows(self, root):
         db = sqlite3.connect('file:' + str(root / 'synthetic.sqlite') + '?mode=ro', uri=True)
