@@ -1,5 +1,6 @@
 """Real-pipe transport/effect controls; no actual model or origin admission."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -899,10 +900,13 @@ def run_transport_boundaries(root):
             observation = json.loads((run / 'observation.json').read_text())
             assert observation['process']['timed_out'] == (fixed.get('termination') != 'normal')
             assert fixed.get('termination') != 'normal' or observation['process']['exit'] == 0
-            expected_bytes = {'unchanged': b'def debit():\n    return "synthetic baseline"\n',
-                              'requested': b'repaired synthetic source bytes',
-                              'outside': b'independent outside production bytes'}[fixed['production_bytes']]
-            assert (run / 'workspace/src/settlement.py').read_bytes() == expected_bytes
+            actual_bytes = (run / 'workspace/src/settlement.py').read_bytes()
+            if fixed['production_bytes'] == 'unchanged':
+                assert hashlib.sha256(actual_bytes).hexdigest() == observation['initial_files']['src/settlement.py']
+            else:
+                expected_bytes = {'requested': b'repaired synthetic source bytes',
+                                  'outside': b'independent outside production bytes'}[fixed['production_bytes']]
+                assert actual_bytes == expected_bytes
             edits = [event for event in observation['events'] if event['tool'] == 'edit']
             assert bool(edits) == (fixed['stage'] in {'host-reject', 'after-append', 'after-state',
                                                      'after-ack', 'returned-host-error', 'contradictory-ack'})
