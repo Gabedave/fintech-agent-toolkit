@@ -139,6 +139,7 @@ def report_projection(root, artifacts, version=2):
     journal = [value for source in artifacts if source['role'] == 'raw_tool_journal'
                for value in read_host_capture(_path(root, source['path']), lines=True)[0]]
     order = build(raw_streams, journal)
+    journal_arguments = {event['seq']: event.get('arguments') for event in journal}
     source_rank = {name: index for index, (name, _) in enumerate(raw_streams)}
     for source in artifacts:
         role = source['role']
@@ -187,7 +188,10 @@ def report_projection(root, artifacts, version=2):
                 encoded = isinstance(arguments, str)
                 arguments = json.loads(arguments) if encoded else arguments
                 # Project unmatched attempts too; a denial does not erase an authored assertion.
-                matched = any(call['source'] == source['artifact_id'] and call['end'] == line for call in order['calls'].values())
+                matched = any(call['source'] == source['artifact_id'] and call['end'] == line
+                              and json.dumps(journal_arguments.get(seq), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                              == json.dumps(arguments, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                              for seq, call in order['calls'].items())
                 def same_completion(event):
                     other = event.get('item', {})
                     other_arguments = other.get('arguments', {})
