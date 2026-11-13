@@ -477,6 +477,8 @@ def import_native_read_capture(prepared, raw_path, parent_record, output, **sour
 
 
 def prompt_for(case, variant, profile, implicit=False):
+    from .acceptance_versions import variant_task
+    task = variant_task(case, variant)
     # NO variant ID, oracle predicate, disposition, state assertion, or control
     # plan reaches the model. Only task facts and the supported native API.
     invocation = 'Use the appropriate installed workflow for this task. ' if implicit else 'Apply the installed $' + profile['router'] + ' workflow. '
@@ -486,7 +488,7 @@ def prompt_for(case, variant, profile, implicit=False):
             +read_instruction+
             """Use the workbench for every operation; record concrete findings and blockers for the user with record and report the resulting actual state. """
             """Do not access harness source, oracle files or other filesystem locations. Do not use external apps, network, real uploads or real publication. """
-            'A6/A7 product integration is outside this synthetic fixture and remains pending.\nTask: '+case['task']+'\nSynthetic facts:\n'+json.dumps(variant['facts'],sort_keys=True))
+            'A6/A7 product integration is outside this synthetic fixture and remains pending.\nTask: '+task+'\nSynthetic facts:\n'+json.dumps(variant['facts'],sort_keys=True))
 
 
 def run_one(case, variant, profile, installed, home, output, args, implicit=False):

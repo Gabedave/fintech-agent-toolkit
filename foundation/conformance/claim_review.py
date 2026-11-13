@@ -41,9 +41,12 @@ def fixed_file(name, expected):
 def rubric(oracle_sha256=None):
     base = fixed_file('claim-review-rubric-v1.json', RUBRIC_SHA256)
     if oracle_sha256 is not None:
-        from .acceptance_versions import version_for_oracle, amended_rubric
-        if version_for_oracle(oracle_sha256)['version'] == 2:
-            return amended_rubric(base)
+        from .acceptance_versions import version_for_oracle, amended_rubric, task_amended_rubric
+        version = version_for_oracle(oracle_sha256)['version']
+        if version >= 2:
+            base = amended_rubric(base)
+        if version == 3:
+            base = task_amended_rubric(base)
     return base
 
 

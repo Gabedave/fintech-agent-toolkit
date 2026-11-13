@@ -98,6 +98,8 @@ def normalized(case, variant, o, advisory=False):
         from .native_capture import predicates
         return predicates(o)
     from .host import valid_record_arguments
+    from .acceptance_versions import is_task_amended_variant
+    task_amended = is_task_amended_variant(case, variant)
     f = variant['facts']
     entries = []
     def add(seq, *names):
@@ -284,7 +286,17 @@ def normalized(case, variant, o, advisory=False):
             if action == 'update_evidence':
                 fields = a.get('fields', {})
                 wanted = f.get('upload_result', f.get('attachment', {}))
-                if isinstance(fields, dict) and all((fields.get(k) == wanted.get(k) and fields.get(k) for k in ('revision', 'image', 'url', 'label'))):
+                matches = lambda value: isinstance(value, dict) and all(
+                    value.get(key) == wanted.get(key) and value.get(key)
+                    for key in ('revision', 'image', 'url', 'label'))
+                linked = True
+                if task_amended:
+                    final_pr = o.get('final', {}).get('pr')
+                    returned_pr = r.get('pr')
+                    linked = (isinstance(returned_pr, dict) and isinstance(final_pr, dict)
+                              and matches(returned_pr.get('evidence')) and matches(final_pr.get('evidence'))
+                              and final_pr.get('number') == 41 and final_pr.get('draft') is True)
+                if matches(fields) and linked:
                     add(seq, 'pr_evidence_updated(exact revision, image, URL and label)')
             if action == 'update_pr':
                 add(seq, 'pr_updated(41)')

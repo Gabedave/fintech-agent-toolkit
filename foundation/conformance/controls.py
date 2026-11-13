@@ -230,11 +230,15 @@ def sensitivity_review(case, variant, observation, directory, dispositions=None,
     save('final-files.json', observation.get('final_files', {}))
     save('chronology.json', [{'seq': e['seq'], 'tool': e['tool']} for e in observation['events']])
     save('observation.json', observation)
-    from .acceptance_versions import version_for_oracle, V2_PUBLIC_ORACLE_SHA256, amended_cases
+    from .acceptance_versions import (version_for_oracle, V2_PUBLIC_ORACLE_SHA256, V3_PUBLIC_ORACLE_SHA256,
+                                      amended_cases, task_amended_cases)
     from .evaluator import PUBLIC_FIXTURE_SHA256, load_cases
     if oracle_sha256 is None and case['id'] == '06-review-evidence':
         approved = next(c for c in amended_cases(load_cases()['cases']) if c['id'] == case['id'])
-        if case == approved:
+        approved_v3 = next(c for c in task_amended_cases(amended_cases(load_cases()['cases'])) if c['id'] == case['id'])
+        if case == approved_v3:
+            oracle_sha256 = V3_PUBLIC_ORACLE_SHA256
+        elif case == approved:
             oracle_sha256 = V2_PUBLIC_ORACLE_SHA256
     version = version_for_oracle(oracle_sha256 or PUBLIC_FIXTURE_SHA256)
     binding = {name: 'sensitivity-only-' + name for name in protocol()['binding_required_fields']}
