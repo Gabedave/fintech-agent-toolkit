@@ -50,6 +50,16 @@ class DisposablePolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'security configuration changed'):
                 verify_policy(home, receipt)
 
+    def test_fixture_server_is_required_without_granting_permissions(self):
+        flags = workbench_permissions()
+        settings = tomllib.loads('\n'.join(
+            flags[index + 1] for index, flag in enumerate(flags) if flag == '-c'))
+        self.assertIs(True, settings['mcp_servers']['workbench']['required'])
+        self.assertEqual({'required', 'enabled_tools'},
+                         set(settings['mcp_servers']['workbench']))
+        self.assertNotIn('approval_policy', settings)
+        self.assertNotIn('sandbox_mode', settings)
+
     def test_environment_preserves_home_and_sandbox_but_excludes_provider_secrets(self):
         with patch.dict(os.environ, {'HOME': '/ordinary/home', 'PATH': '/bin',
                                      'OPENAI_API_KEY': 'not-for-inheritance',
