@@ -33,6 +33,8 @@ collection alone does not complete independent claim review. Keep receipts,
 raw evidence and the trusted index outside candidate trees and hidden from the
 scored model. Retain prior usable failures and separate reconciliation records.
 
+For an explicitly approved acceptance amendment, use its exact external versioned fixture and matching rubric/freeze identities. The attachment v2 overlay preserves the original v1 data and adds a separate 48-variant interpretation; unknown or mixed identities are rejected. Retain original results and rerun affected baselines and candidates. A source hash alone does not establish the owner's approval.
+
 The trusted caller must verify the reviewer's actual platform assignment,
 independence, sender and returned receipt/input identities, then pin the external
 index digest. The program validates those bindings; arbitrary JSON, a file path,
