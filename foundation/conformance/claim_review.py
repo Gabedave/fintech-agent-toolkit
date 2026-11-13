@@ -125,13 +125,64 @@ def evidence_leaves(value, path):
         yield text, path, 'decoded-string' if isinstance(value, str) else 'json-value'
 
 
+
+def record_projection_v3(value, line, source, values, order, journal_arguments, source_rank):
+    """Retain malformed/denied authored leaves without promoting them to notes.
+
+    Only a schema-valid successful journal record is an original note. Raw
+    attempts are report-only; exact start/completion/journal correspondence may
+    remove duplicates but cannot remove a correction or typed contradiction.
+    """
+    from .host import valid_record_arguments
+    from .chronology import arguments
+    role = source['role']
+    if role == 'raw_tool_journal':
+        args = value.get('arguments', {})
+        seq = value.get('seq')
+        sequenced = type(seq) is int and seq > 0
+        call = order['calls'].get(seq) if sequenced else None
+        position = (source_rank[call['source']], call['end']) if call else (len(source_rank), seq if sequenced else line)
+        if sequenced and valid_record_arguments(args) and 'error' not in value.get('result', {}):
+            return [{'_position': position, 'text': args['text'], 'phase': 'original-note',
+                     'event_seq': seq, 'category': args['category'],
+                     'source_artifact_id': source['artifact_id'], 'source_line': line,
+                     'source_field': ['arguments', 'text']}]
+        category = 'denied-record-attempt' if 'error' in value.get('result', {}) else 'malformed-record'
+        path, seq = ['arguments'], seq if sequenced else None
+    else:
+        item = value['item']
+        args = arguments(item, tolerate_malformed_records=True)
+        def canonical(value):
+            return json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
+        matched = any(call['source'] == source['artifact_id'] and call['end'] == line
+                      and canonical(journal_arguments.get(seq)) == canonical(args)
+                      for seq, call in order['calls'].items())
+        completed = value['type'] == 'item.started' and item.get('id') is not None and any(
+            end > line and event.get('type') == 'item.completed'
+            and all(event.get('item', {}).get(key) == item.get(key) for key in ('id', 'type', 'server', 'tool'))
+            and canonical(arguments(event['item'], tolerate_malformed_records=True)) == canonical(args)
+            for end, event in values)
+        if matched or completed:
+            return []
+        position = (source_rank[source['artifact_id']], line)
+        path = ['item', 'arguments']
+        if isinstance(item.get('arguments'), str) and args != item['arguments']:
+            path += ['@json']
+        seq = None
+        category = 'denied-record-attempt' if item.get('error') else 'uncorroborated-record'
+    return [{'_position': position, 'text': text, 'phase': 'intermediate-message',
+             'event_seq': seq, 'category': category, 'source_artifact_id': source['artifact_id'],
+             'source_line': line, 'source_field': field, 'text_encoding': encoding}
+            for text, field, encoding in evidence_leaves(args, path)]
+
+
 def report_projection(root, artifacts, version=2):
     """Losslessly extract all Codex messages and all actual record notes.
 
     Decision-only adapters may use raw_process_stream containing plain UTF-8
     instead of JSONL, declared by source_format='text'. There is no host claim.
     """
-    if version not in (1, 2):
+    if version not in (1, 2, 3):
         raise ValueError('unknown report projection version')
     rows = []
     from .chronology import build, message_phase, read_stream
@@ -144,7 +195,7 @@ def report_projection(root, artifacts, version=2):
                    for source in artifacts if source['role'] == 'raw_process_stream' and source.get('source_format', 'jsonl') == 'jsonl']
     journal = [value for source in artifacts if source['role'] == 'raw_tool_journal'
                for value in read_host_capture(_path(root, source['path']), lines=True)[0]]
-    order = build(raw_streams, journal)
+    order = build(raw_streams, journal, tolerate_malformed_records=version >= 3)
     journal_arguments = {event['seq']: event.get('arguments') for event in journal
                          if 'seq' in event}
     source_rank = {name: index for index, (name, _) in enumerate(raw_streams)}
@@ -173,7 +224,11 @@ def report_projection(root, artifacts, version=2):
         message_rows = []
         for line, value in values:
             item = value.get('item', {})
-            if role == 'raw_tool_journal' and value.get('tool') == 'record':
+            if version >= 3 and ((role == 'raw_tool_journal' and value.get('tool') == 'record') or
+                                 (role == 'raw_process_stream' and value.get('type') in {'item.started', 'item.completed'}
+                                  and item.get('type') == 'mcp_tool_call' and item.get('tool') == 'record')):
+                rows.extend(record_projection_v3(value, line, source, values, order, journal_arguments, source_rank))
+            elif role == 'raw_tool_journal' and value.get('tool') == 'record':
                 text = value.get('arguments', {}).get('text')
                 if not isinstance(text, str):
                     raise ValueError('record text is not UTF-8 text')
@@ -278,7 +333,7 @@ def seal_run(run_dir, binding, run_id, suite, case_id, variant_id, profile_role,
     if set(binding) != set(p['binding_required_fields']) or any(value is None or value == '' for value in binding.values()):
         raise ValueError('incomplete or unknown run binding')
     records = [dict(item) for item in artifacts]
-    projected = report_projection(root, records)
+    projected = report_projection(root, records, version=3)
     if report_surface is not None and report_surface != projected:
         raise ValueError('report projection differs from complete raw source')
     directory = root / 'report-text'
@@ -306,7 +361,7 @@ def seal_run(run_dir, binding, run_id, suite, case_id, variant_id, profile_role,
     manifest = {'kind': 'claim-review-raw-input-manifest', 'protocol_version': 1,
                 'run_id': run_id, 'suite': suite, 'case_id': case_id, 'variant_id': variant_id,
                 'profile_role': profile_role, 'binding': binding, 'artifacts': records,
-                'report_projection_version': 2,
+                'report_projection_version': 3,
                 'report_surface': surface, 'chronology': chronology,
                 'not_applicable': not_applicable or {},
                 'action_state_result_ref': action_state_result_ref}

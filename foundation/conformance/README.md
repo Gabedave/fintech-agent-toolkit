@@ -317,9 +317,9 @@ never available to actual model runs. An optional acknowledgment is not an extra
 required operation when all fixed obligations are independently complete.
 
 
-### Reporting projection version 2 and authoritative SQLite evidence
+### Reporting projection versions and authoritative SQLite evidence
 
-New raw manifests declare `report_projection_version: 2`. The receipt protocol
+New raw manifests declare `report_projection_version: 3`. The receipt protocol
 remains version 1; this is an explicit reporting-surface extension, not a change
 to frozen predicates. Manifests without the marker use their historical version
 1 projection and cannot claim coverage of newly projected evidence fields.
@@ -330,6 +330,14 @@ other scalar values and empty containers use canonical JSON text with an explici
 `text_encoding` marker. Readback remains operation/state evidence, not independent
 verification of the candidate-authored claim. A correction never removes the
 original assertion. Reviewers must examine this complete projected surface.
+
+Version 3 also retains malformed, denied, uncorroborated and unsequenced record
+attempts as report text with their original source paths. Duplicate keys or
+nonfinite numbers in encoded record arguments preserve the original argument
+string instead of a lossy decoded value. Invalid calls do not establish successful
+host-note mutations; genuine independently confirmed pre-probe statements keep
+their existing chronology semantics. Historical version 1/2 projections remain
+available for their original sealed manifests; existing runs are not resealed.
 
 New observed runs retain observer-owned initial/final SQLite database copies and
 complete ownership/ledger rows and schema snapshots. Snapshots bind the original

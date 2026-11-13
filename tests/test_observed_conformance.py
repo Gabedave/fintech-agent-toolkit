@@ -84,8 +84,11 @@ class ObservedConformanceTests(unittest.TestCase):
         self.assertEqual('pass', r['status'], r['failures'])
         self.assertEqual(47, r['variants'])
         self.assertFalse(r['model_compliance'])
+        from foundation.conformance.acceptance_versions import amended_cases
+        supported_cases = self.data['cases'] + amended_cases(self.data['cases'])
         self.assertEqual(
-            set((p for c in self.data['cases'] for v in c['variants'] for p in v['forbidden_observed_events'])),
+            {predicate for case in supported_cases for variant in case['variants']
+             for predicate in variant['forbidden_observed_events']},
             set(FORBIDDEN_MUTATIONS)
         )
         self.assertEqual(

@@ -19,9 +19,39 @@ def read_stream(path, interrupted=False):
     return values
 
 
-def arguments(item):
+def arguments(item, tolerate_malformed_records=False):
     value = item.get('arguments', {})
-    return json.loads(value) if isinstance(value, str) else value
+    if isinstance(value, str):
+        try:
+            if tolerate_malformed_records and item.get('tool') == 'record':
+                def unique_pairs(pairs):
+                    decoded = {}
+                    for key, field in pairs:
+                        if key in decoded:
+                            raise ValueError('duplicate record argument key')
+                        decoded[key] = field
+                    return decoded
+
+                def reject_constant(value):
+                    raise ValueError('nonfinite record argument')
+
+                def finite_float(value):
+                    import math
+                    decoded = float(value)
+                    if not math.isfinite(decoded):
+                        raise ValueError('nonfinite record argument')
+                    return decoded
+
+                # Lossy or nonstandard decoding must not erase an assertion.
+                # The v3 projection retains rejected input as its original string.
+                return json.loads(value, object_pairs_hook=unique_pairs,
+                                  parse_constant=reject_constant, parse_float=finite_float)
+            return json.loads(value)
+        except ValueError:
+            if not tolerate_malformed_records or item.get('tool') != 'record':
+                raise
+            return value
+    return value
 
 
 def message_phase(values, line, multiple_sources=False):
@@ -51,12 +81,15 @@ def _result(item):
     return decoded
 
 
-def build(streams, journal):
+def build(streams, journal, *, tolerate_malformed_records=False):
     """Pair unique raw invocations/completions, then correlate actual host results.
 
     Equal calls may correlate by proven non-overlapping order. Indistinguishable
     overlapping calls remain unknown even when their arguments happen to match.
     """
+    def call_arguments(item):
+        return arguments(item, tolerate_malformed_records)
+
     calls = []
     reports = []
     complete = False
@@ -76,13 +109,13 @@ def build(streams, journal):
                                 'category': 'message', 'text': item.get('text', ''), 'event_seq': None})
             if item.get('type') != 'mcp_tool_call' or item.get('server') != 'workbench':
                 continue
-            args = arguments(item)
-            if item.get('tool') == 'record' and item.get('error') and isinstance(args.get('text'), str):
+            args = call_arguments(item)
+            if item.get('tool') == 'record' and item.get('error') and isinstance(args, dict) and isinstance(args.get('text'), str):
                 reports.append({'source': source, 'line': line, 'phase': 'intermediate-message', 'phase_known': True,
                                 'category': 'denied-record-attempt', 'text': args['text'], 'event_seq': None})
             matching = [(number, candidate) for number, candidate in starts
                         if number < line and candidate.get('tool') == item.get('tool')
-                        and candidate.get('server') == item.get('server') and arguments(candidate) == args
+                        and candidate.get('server') == item.get('server') and call_arguments(candidate) == args
                         and (candidate.get('id') == item.get('id') if item.get('id') is not None else candidate.get('id') is None)]
             start = matching[0][0] if len(matching) == 1 else None
             calls.append({'source': source, 'start': start, 'end': line, 'tool': item.get('tool'),
@@ -90,7 +123,7 @@ def build(streams, journal):
         for line, item in starts:
             if item.get('server') == 'workbench' and item.get('tool') == 'edit' and not any(call['source'] == source and call['start'] == line for call in calls):
                 calls.append({'source': source, 'start': line, 'end': None, 'tool': 'edit',
-                              'args': arguments(item), 'results': [], 'id': item.get('id')})
+                              'args': call_arguments(item), 'results': [], 'id': item.get('id')})
     mapped = {}
     groups = {}
     host_events = [event for event in journal if {'seq', 'tool', 'arguments', 'result'} <= event.keys()]
@@ -111,7 +144,7 @@ def build(streams, journal):
                 for event, call in zip(group, matches):
                     mapped[event['seq']] = call
     for event in host_events:
-        if event['tool'] != 'record' or not event['arguments'].get('text'):
+        if event['tool'] != 'record' or not isinstance(event['arguments'], dict) or not isinstance(event['arguments'].get('text'), str) or not event['arguments']['text']:
             continue
         call = mapped.get(event['seq'])
         reports.append({'source': call['source'] if call else None, 'line': call['end'] if call else None,
@@ -120,7 +153,7 @@ def build(streams, journal):
                         'event_seq': event['seq']})
     for call in calls:
         if (call['tool'] != 'record' or call['end'] is None
-                or not isinstance(call['args'].get('text'), str)
+                or not isinstance(call['args'], dict) or not isinstance(call['args'].get('text'), str)
                 or any(call is known for known in mapped.values())):
             continue
         if any(isinstance(result, dict) and result.get('recorded') == call['args'] for result in call['results']):
