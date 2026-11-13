@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from foundation.conformance.runner import (
-    require_effective_model, require_tool_isolation, safe_env, stream_process,
+    require_effective_model, require_tool_isolation, require_tool_availability, safe_env, stream_process,
 )
 
 
@@ -35,6 +35,25 @@ class PreflightGuards(unittest.TestCase):
         result = self.isolated()
         require_tool_isolation(result)
         self.assertEqual(2, len(result['diagnostics']['allowlisted_feature_rows']))
+
+    def test_normal_policy_records_availability_without_claiming_absence(self):
+        result = self.capture('shell_tool stable false\nunified_exec stable true\n')
+        self.assertEqual({'shell_tool': False, 'unified_exec': True}, require_tool_availability(result))
+        with self.assertRaises(RuntimeError):
+            require_tool_isolation(result)
+        for features in ({'shell_tool': False}, {'shell_tool': False, 'unified_exec': 1}):
+            broken = copy.deepcopy(result)
+            broken['diagnostics']['tool_features'] = features
+            with self.assertRaises(RuntimeError):
+                require_tool_availability(broken)
+        for key, value in [('exit', 7), ('timed_out', True), ('capture_gaps', ['missing'])]:
+            broken = copy.deepcopy(result)
+            broken[key] = value
+            with self.assertRaises(RuntimeError):
+                require_tool_availability(broken)
+        result['diagnostics']['feature_conflicts'] = ['unified_exec']
+        with self.assertRaises(RuntimeError):
+            require_tool_availability(result)
 
     def test_failed_process_cannot_rescue_false_looking_observations(self):
         result = self.capture('shell_tool stable false\nunified_exec stable false\n',
