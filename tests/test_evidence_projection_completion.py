@@ -45,6 +45,22 @@ class EvidenceCompletionTests(unittest.TestCase):
         self.assertEqual(['true', 'pass'], [row['text'] for row in rows])
         self.assertEqual([2, 2], [row['source_line'] for row in rows])
 
+    def test_typed_journal_mismatch_does_not_hide_raw_assertion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = {'action': 'update_evidence', 'fields': {'access_check': True}}
+            event = {'seq': 1, 'tool': 'host', 'arguments': args, 'result': {'updated': True}}
+            item = {'id': 'call', 'type': 'mcp_tool_call', 'server': 'workbench', 'tool': 'host',
+                    'arguments': copy.deepcopy(args),
+                    'result': {'content': [{'type': 'text', 'text': json.dumps(event['result'])}]}}
+            item['arguments']['fields']['access_check'] = 1
+            (root / 'journal.jsonl').write_text(json.dumps(event) + '\n')
+            (root / 'raw.jsonl').write_text(json.dumps({'type': 'item.completed', 'item': item}) + '\n')
+            rows = report_projection(root, [artifact(root, 'journal', 'raw_tool_journal', 'journal.jsonl'),
+                                            artifact(root, 'raw', 'raw_process_stream', 'raw.jsonl')])
+            self.assertEqual(['true', '1'], [row['text'] for row in rows])
+            self.assertEqual(['journal', 'raw'], [row['source_artifact_id'] for row in rows])
+
     def test_other_server_cannot_erase_first_assertion(self):
         rows = self.project(lambda item: item.update(server='other'))
         self.assertEqual([1, 1, 2, 2], [row['source_line'] for row in rows])
