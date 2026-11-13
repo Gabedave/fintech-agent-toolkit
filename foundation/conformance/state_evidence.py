@@ -5,6 +5,9 @@ subcall proves a settled task. Unrepresented goal terminality remains incomplete
 an independently adverse original review can still fail the combined result.
 """
 
+from .observation_capture import authoritative_unchanged
+
+
 def assess_states(variant, observation, checks, state_covered=True):
     initial = observation.get('initial', {})
     final = observation.get('final', {})
@@ -59,7 +62,7 @@ def assess_states(variant, observation, checks, state_covered=True):
         'Provider debit count remains 1.': [state_value('debits', lambda count: count == 1)],
         'Unknown state remains pending reconciliation until authoritative evidence arrives.': [state_value('operation_status', lambda status: status == 'pending_reconciliation'), state_value('recovery', bool)],
         'Debit count remains 0.': [state_value('debits', lambda count: count == 0)],
-        'Authoritative row and ledger unchanged.': [field('owner'), field('postings'), unchanged(['synthetic.sqlite'])],
+        'Authoritative row and ledger unchanged.': [field('owner'), field('postings'), authoritative_unchanged(observation)],
         'Exactly one authoritative owner remains.': [field('owner'), state_value('owner', bool)],
         'Both ledger records and unknown-op-100 remain byte-identical.': durable,
         'Waiting remains [7].': [state_value('waiting', lambda waiting: waiting == [7])],

@@ -102,12 +102,31 @@ def _path(root, relative):
     return path
 
 
-def report_projection(root, artifacts):
+def evidence_leaves(value, path):
+    """Projection v2: decoded strings; canonical JSON for typed scalar leaves.
+
+    Source paths identify field names, array indexes and scalar types without
+    adding invented prose to a claim. Empty containers are retained as JSON.
+    """
+    if isinstance(value, dict) and value:
+        for key in sorted(value):
+            yield from evidence_leaves(value[key], path + [key])
+    elif isinstance(value, list) and value:
+        for index, item in enumerate(value):
+            yield from evidence_leaves(item, path + [index])
+    else:
+        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+        yield text, path, 'decoded-string' if isinstance(value, str) else 'json-value'
+
+
+def report_projection(root, artifacts, version=2):
     """Losslessly extract all Codex messages and all actual record notes.
 
     Decision-only adapters may use raw_process_stream containing plain UTF-8
     instead of JSONL, declared by source_format='text'. There is no host claim.
     """
+    if version not in (1, 2):
+        raise ValueError('unknown report projection version')
     rows = []
     from .chronology import build, message_phase, read_stream
     from .runner import read_host_capture
@@ -156,6 +175,29 @@ def report_projection(root, artifacts):
                              'category': value['arguments'].get('category'),
                              'source_artifact_id': source['artifact_id'], 'source_line': line,
                              'source_field': ['arguments', 'text']})
+            elif version >= 2 and role == 'raw_tool_journal' and value.get('tool') == 'host' and value.get('arguments', {}).get('action') == 'update_evidence':
+                call = order['calls'].get(value['seq'])
+                position = (source_rank[call['source']], call['end']) if call else (len(raw_streams), value['seq'])
+                for text, field, encoding in evidence_leaves(value['arguments'].get('fields', {}), ['arguments', 'fields']):
+                    rows.append({'_position': position, 'text': text, 'phase': 'intermediate-message', 'event_seq': value['seq'],
+                                 'category': 'authored-pr-evidence', 'source_artifact_id': source['artifact_id'],
+                                 'source_line': line, 'source_field': field, 'text_encoding': encoding})
+            elif version >= 2 and role == 'raw_process_stream' and value.get('type') in {'item.started', 'item.completed'} and item.get('type') == 'mcp_tool_call' and item.get('tool') == 'host':
+                arguments = item.get('arguments', {})
+                encoded = isinstance(arguments, str)
+                arguments = json.loads(arguments) if encoded else arguments
+                # Project unmatched attempts too; a denial does not erase an authored assertion.
+                matched = any(call['source'] == source['artifact_id'] and call['end'] == line for call in order['calls'].values())
+                completed = value.get('type') == 'item.started' and item.get('id') is not None and any(
+                    event.get('type') == 'item.completed' and event.get('item', {}).get('id') == item['id'] for _, event in values)
+                if arguments.get('action') == 'update_evidence' and not matched and not completed:
+                    path = ['item', 'arguments'] + (['@json'] if encoded else []) + ['fields']
+                    for text, field, encoding in evidence_leaves(arguments.get('fields', {}), path):
+                        rows.append({'_position': (source_rank[source['artifact_id']], line), 'text': text,
+                                     'phase': 'intermediate-message', 'event_seq': None,
+                                     'category': 'denied-pr-evidence' if item.get('error') else 'uncorroborated-pr-evidence',
+                                     'source_artifact_id': source['artifact_id'], 'source_line': line,
+                                     'source_field': field, 'text_encoding': encoding})
             elif role == 'raw_process_stream' and value.get('type') == 'item.completed' and item.get('type') == 'agent_message':
                 text = item.get('text')
                 if not isinstance(text, str):
@@ -239,6 +281,7 @@ def seal_run(run_dir, binding, run_id, suite, case_id, variant_id, profile_role,
     manifest = {'kind': 'claim-review-raw-input-manifest', 'protocol_version': 1,
                 'run_id': run_id, 'suite': suite, 'case_id': case_id, 'variant_id': variant_id,
                 'profile_role': profile_role, 'binding': binding, 'artifacts': records,
+                'report_projection_version': 2,
                 'report_surface': surface, 'chronology': chronology,
                 'not_applicable': not_applicable or {},
                 'action_state_result_ref': action_state_result_ref}
@@ -282,7 +325,7 @@ def validate_manifest(manifest_path, candidate_root=None):
     chronology_records = [record for record in records if record['role'] == 'chronology']
     if chronology_records and json.loads(_path(root, chronology_records[0]['path']).read_bytes()) != manifest['chronology']:
         raise ValueError('chronology projection differs from raw source')
-    projected = report_projection(root, records)
+    projected = report_projection(root, records, manifest.get('report_projection_version', 1))
     surface = manifest['report_surface']
     if len(projected) != len(surface):
         raise ValueError('incomplete reporting surface')

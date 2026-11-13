@@ -265,13 +265,21 @@ mechanism freeze/approval and all other mandatory suites. Exact approved public
 they do not replace those original task inputs. Matching bytes alone do not prove
 an owner's approval. No acceptance criteria or fixture expectations are changed.
 
-Each actual run creates and removes its own private `HOME`/`CODEX_HOME`, installs
-the exact local native plugin and links explicit authentication without reading
-or copying credentials. It validates temporary plugin configuration, excludes
-arbitrary provider environment settings, disables generic shell/unified execution,
-web search and tool suggestion, and grants only fixed synthetic workbench tools.
+Each actual run creates and removes a private `CODEX_HOME`, preserving ordinary
+`HOME`, explicit security settings, rules and user instructions. Absent approval
+keys default to `on-request` / `auto_review`; explicit values win. The runner
+links authentication without reading or copying it, installs only the exact
+candidate, and verifies the preserved policy before and after each task. It does
+not ignore rules or grant per-tool approval. Generic shell/unified execution,
+web search and tool suggestion remain disabled for fixture isolation; ordinary
+approval decisions still apply to synthetic tools. Provider settings are excluded.
 `candidate_read` returns actual installed skill/reference bytes inside that plugin.
 The implicit task names no router or skill path. Unexpected tools fail.
+
+For affected regression cases, use `--development --case CASE_ID/VARIANT_ID`
+(repeat `--case` for distinct controls). The output lists selected and omitted
+IDs and remains development-only. Original full-release obligations and adverse
+history still apply. The runner never retries a scored case.
 
 The model receives only task facts and supported tool APIs. Oracle, rubric,
 expected dispositions, reviewer conclusions, private observer paths and unsafe/
@@ -306,3 +314,26 @@ forbidden-request, semantic and order checks. Old unbound inputs receive no such
 proof. This bounded constructor path cannot authenticate execution origin and is
 never available to actual model runs. An optional acknowledgment is not an extra
 required operation when all fixed obligations are independently complete.
+
+
+### Reporting projection version 2 and authoritative SQLite evidence
+
+New raw manifests declare `report_projection_version: 2`. The receipt protocol
+remains version 1; this is an explicit reporting-surface extension, not a change
+to frozen predicates. Manifests without the marker use their historical version
+1 projection and cannot claim coverage of newly projected evidence fields.
+Version 2 additionally projects candidate-authored `host.update_evidence.fields`
+leaves, including denied and uncorroborated attempts. Each leaf keeps its original
+source path, sequence and position. Strings retain exact decoded UTF-8 bytes;
+other scalar values and empty containers use canonical JSON text with an explicit
+`text_encoding` marker. Readback remains operation/state evidence, not independent
+verification of the candidate-authored claim. A correction never removes the
+original assertion. Reviewers must examine this complete projected surface.
+
+New observed runs retain observer-owned initial/final SQLite database copies and
+complete ownership/ledger rows and schema snapshots. Snapshots bind the original
+file hashes and are rederived from retained copies when scoring actual runs.
+Equality concerns these authoritative tables, not SQLite page layout or unrelated
+diagnostic tables. Missing, malformed or unsettled database evidence remains
+incomplete; real forbidden attempts still fail. Historical byte-identical
+containers remain sufficient preservation evidence without rewriting old runs.

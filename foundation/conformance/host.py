@@ -442,6 +442,10 @@ class Host:
             elif action == 'create_pr':
                 s['pr']['duplicate'] = 42
             elif action == 'upload':
+                # Opt-in development fixtures supply the provider's response;
+                # legacy facts retain their original upload behavior.
+                if 'upload_result' in f:
+                    s['attachment'] = copy.deepcopy(f['upload_result'])
                 s['attachment']['uploaded'] = True
             elif action == 'read_attachment':
                 return dict(s['attachment'])

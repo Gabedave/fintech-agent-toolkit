@@ -16,7 +16,11 @@ When a gate was missed, record that historical finding and its disposition. Late
 
 ## Operation and claim scope
 
+Before a state-changing operation, establish both its authorization from the existing ledger and its domain prerequisites from current authoritative state. Use read/validate operations to assess readiness or identity. A known identity or ownership mismatch ends the presented commit path with rejection; use a repository-owned negative control to test rejection separately. A ready transition consumes satisfied exact-head gates and authorized delivery; an assessment request consumes check/readback results. An operation being synthetic, available, or expected to reject does not establish its prerequisites. Retain attempted actions and actual effects separately even when the operation rejects.
+
 Before each material interim or final claim, identify the actual operation, subject/runtime identity, command result and observed state that support it. For a material defect, required repair or delivery blocker, compare that evidence with the applicable requirement. State the supported finding and its limits. Distinguish an observation from an inference, a proposed action and proof that has not run. Keep those distinctions consistent in the final report; a later correction does not erase an earlier unsupported claim.
+
+Build updates from established facts, retaining their subject, revision, actor and evidence layer. A losing actor's absence of effects does not describe the winner. While classification is unresolved, state the discovery question; publish its disposition once grounded. Carry verified facts forward and report only changes, rather than resetting established evidence to pending.
 
 A generic duplicate-row probe proves only its exercised subject. It does not establish a losing transaction, ownership-loss effect or rollback in another path. Unchanged financial state establishes preservation, not an unexecuted rollback. When proving saturation, exercise the actual resource-admission operation at the named ceiling; a generic rejection cannot establish that capacity admission was refused. Retain the current-owner or under-capacity success control where the invariant requires it.
 

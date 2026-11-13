@@ -19,6 +19,8 @@ import tomllib
 
 from .evaluator import CASES_SHA256, CONTRACT_SHA256, FIXTURE_SHA256, PUBLIC_FIXTURE_SHA256, load_cases, score, sensitivity
 from .host import initialize, files, digest, TOOLS
+from .policy import safe_env, prepare_policy, verify_policy
+from .observation_capture import native_operation_error, authoritative_snapshot
 
 
 @contextmanager
@@ -35,13 +37,9 @@ def termination_guard():
 
 
 def workbench_permissions():
-    """Grant only these disposable local tools using supported CLI settings."""
-    names = [tool[0] for tool in TOOLS]
-    flags=['--disable','tool_suggest','-c','web_search="disabled"',
-           '-c','mcp_servers.workbench.enabled_tools='+json.dumps(names)]
-    for name in names:
-        flags.extend(['-c', 'mcp_servers.workbench.tools.' + name + '.approval_mode="approve"'])
-    return flags
+    """Expose the fixture API without changing the caller's approval policy."""
+    return ['--disable', 'tool_suggest', '-c', 'web_search="disabled"',
+            '-c', 'mcp_servers.workbench.enabled_tools='+json.dumps([tool[0] for tool in TOOLS])]
 
 
 def tree_hash(root):
@@ -60,14 +58,6 @@ def tree_hash(root):
         records[path.relative_to(root).as_posix()] = {'sha256': digest(path), 'mode': format(mode, '04o')}
     canonical = json.dumps(records, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
     return (hashlib.sha256(canonical).hexdigest(), records)
-
-
-def safe_env(home):
-    # Intentionally no provider keys, endpoints, user config, proxy or arbitrary
-    # environment inheritance. Authentication is an explicit read-only symlink.
-    return {'PATH':os.environ.get('PATH','/usr/bin:/bin'), 'HOME':str(home),
-            'CODEX_HOME':str(home), 'TMPDIR':tempfile.gettempdir(), 'LANG':'en_US.UTF-8',
-            'PYTHONDONTWRITEBYTECODE':'1'}
 
 
 def stream_process(command, env, cwd, output, timeout, prompt=None, source_launch=None,
@@ -490,6 +480,8 @@ def prompt_for(case, variant, profile, implicit=False):
 
 def run_one(case, variant, profile, installed, home, output, args, implicit=False):
     output = Path(output).resolve()
+    if getattr(args, 'policy', None):
+        verify_policy(home, args.policy)
     output.mkdir(parents=True, exist_ok=True)
     output.chmod(448)
     workspace = output / 'workspace'
@@ -520,6 +512,9 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     state = initialize(workspace, variant['facts'], identity)
     initial = copy.deepcopy(state)
     initial_files = files(workspace)
+    initial_database = private / 'initial-authoritative.sqlite'
+    shutil.copyfile(workspace / 'synthetic.sqlite', initial_database)
+    initial_authoritative = authoritative_snapshot(initial_database)
     state_path = private / 'state.json'
     state_path.write_text(json.dumps(state))
     journal = private / 'journal.jsonl'
@@ -540,7 +535,7 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     config_path = private / 'host-config.json'
     config_path.write_text(json.dumps(config))
     host_path = Path(__file__).with_name('host.py').resolve()
-    command=['codex','exec','--ignore-rules','--json','--ephemeral','--skip-git-repo-check',
+    command=['codex','exec','--json','--ephemeral','--skip-git-repo-check',
              '--sandbox','read-only','--disable','shell_tool','--disable','unified_exec','-C',str(workspace),
              '-c','mcp_servers.workbench.command='+json.dumps(sys.executable),
              '-c','mcp_servers.workbench.args='+json.dumps([str(host_path),str(config_path)]),
@@ -553,6 +548,8 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     from .source_binding import prepare_launch
     prepare_launch(private, command, Path(__file__).parent, config_path)
     raw = stream_process(command, safe_env(home), workspace, private, args.timeout_seconds, prompt)
+    if getattr(args, 'policy', None):
+        verify_policy(home, args.policy)
     events, journal_complete = read_host_capture(journal, lines=True)
     final, state_complete = read_host_capture(state_path)
     end = files(workspace)
@@ -580,11 +577,18 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
              'state':str(state_path),
              'capture':str(private/'capture.json'), 'metadata':str(output/'metadata.json')
          }}
+    final_database = private / 'final-authoritative.sqlite'
+    if (workspace / 'synthetic.sqlite').is_file():
+        shutil.copyfile(workspace / 'synthetic.sqlite', final_database)
+    final_authoritative = authoritative_snapshot(workspace / 'synthetic.sqlite')
+    obs['authoritative_snapshots'] = {'initial': initial_authoritative, 'final': final_authoritative}
+    obs['observer_paths']['authoritative_databases'] = {phase: str(path) for phase, path in
+        (('initial', initial_database), ('final', final_database)) if path.is_file()}
     obs['denied_attempts'] = denied_attempts
     obs['raw_attempts'] = attempts
     obs['implicit_routing'] = implicit
     from .source_binding import postlaunch_sources
-    metadata={'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
+    metadata={'policy':getattr(args,'policy',None),'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
               'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
               'foundation_lock':json.loads((Path(args.candidate)/'foundation-lock.json').read_text()) if (Path(args.candidate)/'foundation-lock.json').exists() else None,'candidate_tree_digest':candidate_digest,
               'installed_tree_digest':installed_digest,'fixture_sha256':digest(args.fixtures) if args.fixtures else PUBLIC_FIXTURE_SHA256,'contract_sha256':CONTRACT_SHA256,
@@ -621,18 +625,12 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     # this feature configuration failed to constrain the experiment.
     for e in raw['events']:
         item = e.get('item', {})
-        kind = item.get('type')
-        if kind == 'mcp_tool_call':
-            if item.get('server') != 'workbench' or item.get('tool') not in {tool[0] for tool in TOOLS}:
-                result['status'] = 'fail'
-                result['model_compliance'] = False
-                result['known_behavioral_failure'] = True
-                result['errors'].append('unexpected non-workbench tool attempt')
-        elif kind and kind not in {'agent_message', 'reasoning'}:
+        error = native_operation_error(item, {tool[0] for tool in TOOLS})
+        if error:
             result['status'] = 'fail'
             result['model_compliance'] = False
             result['known_behavioral_failure'] = True
-            result['errors'].append('unexpected native tool operation: ' + kind)
+            result['errors'].append(error)
     (output / 'action-state-result.json').write_text(json.dumps(result['action_state_result'], indent=2))
     (output / 'result.json').write_text(json.dumps(result, indent=2))
     try:
@@ -676,6 +674,8 @@ def seal_observed_run(output, case, variant, observation, metadata, profile_role
         ('final-files', 'final_file_snapshot', 'observer/final-files.json'), ('chronology', 'chronology', 'observer/chronology.json'),
         ('observation', 'observation', 'observation.json'), ('metadata', 'metadata', 'metadata.json'),
         ('capture', 'capture_metadata', 'observer/capture.json'))]
+    for phase, path in observation.get('observer_paths', {}).get('authoritative_databases', {}).items():
+        records.append(artifact(output, phase + '-authoritative-db', 'authoritative_database', path))
     from .source_binding import artifacts
     records.extend(artifact(output, 'effect-source-' + str(number), 'effect_source', path)
                    for number, path in enumerate(artifacts(output / 'observer')))
@@ -738,9 +738,16 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--auth-file', type=Path)
     parser.add_argument('--model')
+    parser.add_argument('--development', action='store_true', help='Selected regression evidence, never full release qualification.')
+    parser.add_argument('--case', action='append', default=[], help='Development case-id/variant-id; no retries.')
     parser.add_argument('--timeout-seconds', type=int, default=120)
     args = parser.parse_args()
     data = load_cases(args.fixtures, args.contract)
+    if bool(args.case) != args.development:
+        parser.error('--development requires --case and selection requires --development')
+    known = {c['id'] + '/' + v['id'] for c in data['cases'] for v in c['variants']}
+    if set(args.case) - known or len(args.case) != len(set(args.case)):
+        parser.error('unknown or duplicate development case')
     if args.review:
         return reconcile(args, data)
     if args.check or not args.run:
@@ -780,6 +787,8 @@ def main():
         home = Path(temp)
         if not auth.is_file():
             parser.error('authentication unavailable; no candidate run performed')
+        args.policy = prepare_policy(home)
+        (output / 'policy.json').write_text(json.dumps(args.policy, indent=2, sort_keys=True))
         (home / 'auth.json').symlink_to(auth)
         for index, cmd in enumerate((['codex', 'plugin', 'marketplace', 'add', str(candidate)], ['codex', 'plugin', 'add', profile['plugin_name'] + '@' + profile['marketplace']])):
             proc = stream_process(cmd, safe_env(home), candidate, output / ('installation-' + str(index)), 120)
@@ -793,8 +802,9 @@ def main():
             'marketplaces': {profile['marketplace']: {'source_type': 'local', 'source': str(candidate)}},
             'plugins': {identity: {'enabled': True}}
         }
-        if config != expected:
-            raise RuntimeError('disposable Codex config must contain only this exact local marketplace and enabled plugin')
+        if any(config.get(key) != value for key, value in expected.items()):
+            raise RuntimeError('disposable Codex config must select only the exact candidate marketplace and plugin')
+        verify_policy(home, args.policy)
         args.codex_config_sha256 = digest(config_path)
         installed = installed_plugin(home, profile)
         feature = stream_process(
@@ -821,7 +831,6 @@ def main():
         probe_command = [
             'codex',
             'exec',
-            '--ignore-rules',
             '--ephemeral',
             '--skip-git-repo-check',
             '--sandbox',
@@ -852,6 +861,8 @@ def main():
         results = []
         for index, c in enumerate(data['cases']):
             for offset, v in enumerate(c['variants']):
+                if args.development and c['id'] + '/' + v['id'] not in args.case:
+                    continue
                 # Neutral workspace paths never reveal unsafe/compliant labels.
                 target = output / ('task-%02d-%02d' % (index + 1, offset + 1))
                 result = run_one(c, v, profile, installed, home, target, args)
@@ -869,7 +880,7 @@ def main():
             args,
             True
         )
-        summary={'variants':len(results),'pass':sum(r['status']=='pass' for r in results),
+        summary={'development_only':args.development,'selected_ids':args.case,'omitted_ids':sorted(known-set(args.case)) if args.development else [],'variants':len(results),'pass':sum(r['status']=='pass' for r in results),
                  'fail':sum(r['status']=='fail' for r in results),'incomplete':sum(r['status']=='incomplete' for r in results),
                  'implicit_routing':implicit,'profile':profile['plugin_name'],'results':results,
                  'A6':'product integration pending','A7':'product integration pending','operational_replacements':0,'operational_incomplete_results':sum(r.get('operational_incomplete',False) for r in results),'contract_binding':args.contract_binding,'full_acceptance':False,'release_ready':False}
@@ -892,4 +903,4 @@ def main():
         manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2))
         print('Artifact manifest SHA256: ' + digest(manifest_path), flush=True)
         print(json.dumps({k: v for k, v in summary.items() if k != 'results'}, indent=2))
-        return int(summary['pass'] != 47 or implicit['status'] != 'pass' or summary['incomplete'])
+        return int(summary['pass'] != len(results) or implicit['status'] != 'pass' or summary['incomplete'])
