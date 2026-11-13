@@ -132,12 +132,23 @@ class ObservedConformanceTests(unittest.TestCase):
         self.assertNotIn('SKILL.md', p)
 
     def test_disposable_environment_preserves_home_without_provider_keys(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            e = safe_env(Path(tmp))
-            import os
-            self.assertEqual(os.environ.get('HOME', str(Path.home())), e['HOME'])
-            self.assertEqual(tmp, e['CODEX_HOME'])
-            self.assertEqual({'PATH', 'HOME', 'CODEX_HOME', 'TMPDIR', 'LANG', 'PYTHONDONTWRITEBYTECODE'}, set(e))
+        import os
+        from unittest.mock import patch
+        source = {
+            'PATH': '/test/bin', 'HOME': '/test/home', 'TMPDIR': '/test/tmp',
+            'LANG': 'C', 'OPENAI_API_KEY': 'synthetic-not-a-secret',
+            'ANTHROPIC_API_KEY': 'synthetic-not-a-secret', 'CODEX_HOME': '/old/home',
+        }
+        optional = {'LC_ALL': 'C', 'CODEX_SANDBOX_NETWORK_DISABLED': '1'}
+        for extra in ({}, optional):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as tmp:
+                with patch.dict(os.environ, {**source, **extra}, clear=True):
+                    e = safe_env(Path(tmp))
+                self.assertEqual({
+                    'PATH': '/test/bin', 'HOME': '/test/home', 'TMPDIR': '/test/tmp',
+                    'LANG': 'C', 'CODEX_HOME': tmp, 'PYTHONDONTWRITEBYTECODE': '1',
+                    **extra,
+                }, e)
 
     def test_mcp_reader_limits_to_installed_candidate_and_reads_real_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
