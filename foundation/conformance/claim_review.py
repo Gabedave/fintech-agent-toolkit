@@ -198,7 +198,8 @@ def report_projection(root, artifacts, version=2):
                             return False
                     return (event.get('type') == 'item.completed'
                             and all(other.get(key) == item.get(key) for key in ('id', 'type', 'server', 'tool'))
-                            and other_arguments == arguments)
+                            and json.dumps(other_arguments, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                            == json.dumps(arguments, sort_keys=True, ensure_ascii=False, allow_nan=False))
                 completed = value.get('type') == 'item.started' and item.get('id') is not None and any(
                     end_line > line and same_completion(event) for end_line, event in values)
                 if arguments.get('action') == 'update_evidence' and not matched and not completed:
