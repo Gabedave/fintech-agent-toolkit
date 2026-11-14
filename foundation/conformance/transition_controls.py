@@ -788,6 +788,10 @@ def order_fixture(spec, root):
         if reverse:
             if 'controls' in ident:
                 ops.reverse()
+                # Restore trusted bytes through another observed mutation so
+                # the late proof executes; neither earlier write gains proof.
+                from .host import REFACTOR_BASELINE
+                ops.insert(1, ('edit', {'path': 'src/settlement.py', 'content': REFACTOR_BASELINE.decode()}))
             elif 'attachment' in ident:
                 ops.insert(1, ops.pop())
             elif 'PR-ready' in ident:
