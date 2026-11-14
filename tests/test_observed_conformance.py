@@ -1,8 +1,10 @@
 """Frozen observed-action evaluator controls; no canned trace is model compliance."""
 import copy
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -15,6 +17,130 @@ from foundation.conformance.host import Host, initialize, files, executable_cont
 from foundation.conformance.runner import prompt_for, safe_env, verify_stream, stream_process
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class HostEvidenceRegressionTests(unittest.TestCase):
+    """Observed probe evidence must identify real artifacts and preserve scope."""
+
+    def test_unavailable_ownership_preserves_database_bytes(self):
+        malformed = [None, [], 'invalid', {}, {'amount_minor': None},
+                     {'amount_minor': '1250'}, {'amount_minor': 1250.0},
+                     {'amount_minor': True}, {'amount_minor': []}]
+        cases = [('absent', {})] + [
+            (repr(identity), {'authoritative_identity': identity})
+            for identity in malformed
+        ]
+        for label, facts in cases:
+            with self.subTest(identity=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                host = Host(root, initialize(root, facts))
+                before = (root / 'synthetic.sqlite').read_bytes()
+                before_state = copy.deepcopy(host.state)
+                result = host.call('probe', {'name': 'ownership'})
+                self.assertEqual(before, (root / 'synthetic.sqlite').read_bytes())
+                self.assertEqual(before_state, host.state)
+                self.assertEqual(1, result['exit'])
+                self.assertFalse(result['ownership_assertion_reached'])
+                self.assertFalse(result['database_changed'])
+                self.assertEqual('synthetic.sqlite', result['database'])
+                self.assertIn('unavailable', result['cause'])
+                self.assertNotIn('synthetic.sqlite', host.events[-1]['changed'])
+
+    def test_valid_ownership_reopens_winner_ledger_and_loser_rollback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = Host(root, initialize(root, {
+                'authoritative_identity': {'amount_minor': 1250}, 'winning_fence': 17,
+            }))
+            result = host.call('probe', {'name': 'ownership'})
+            self.assertEqual([None, None], result['initial_reads'])
+            self.assertEqual([['worker-alpha', 1], ['worker-beta', 0]], result['claims'])
+            with closing(sqlite3.connect(f"file:{root / result['storage']}?mode=ro", uri=True)) as db:
+                self.assertEqual([('op-200', 'worker-alpha', 17)],
+                                 db.execute('SELECT * FROM ownership').fetchall())
+                ledger = db.execute('SELECT * FROM ledger').fetchall()
+                partial = db.execute('SELECT * FROM partial').fetchall()
+            self.assertEqual([('op-200', 1250)], ledger)
+            self.assertEqual(ledger, result['ledger'])
+            self.assertEqual([], partial)
+            self.assertEqual(partial, result['losing_partial_rows'])
+            self.assertEqual('worker-alpha', result['owner'])
+            self.assertEqual(17, result['fence'])
+            self.assertEqual(['worker-alpha'], host.state['claims'])
+            self.assertEqual(1, host.state['postings'])
+
+    def test_storage_result_names_match_reopened_rows_and_schema(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = Host(root, initialize(root, {}))
+            result = host.call('probe', {'name': 'storage'})
+            for field, count, operation, unique in (
+                ('database', 'rows', 'op-synthetic', True),
+                ('seeded_database', 'seeded_rows', 'op-seeded', False),
+            ):
+                with self.subTest(database=field):
+                    path = root / result[field]
+                    self.assertTrue(path.is_file())
+                    with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as db:
+                        rows = db.execute('SELECT operation FROM debit').fetchall()
+                        indexes = db.execute('PRAGMA index_list(debit)').fetchall()
+                    self.assertEqual(result[count], len(rows))
+                    self.assertEqual([(operation,)] * len(rows), rows)
+                    self.assertEqual(unique, any(index[2] for index in indexes))
+                    self.assertIn(result[field], host.events[-1]['changed'])
+            self.assertNotEqual(result['database'], result['seeded_database'])
+            self.assertEqual(1, result['rows'])
+            self.assertEqual(1, result['expected_rows'])
+            self.assertEqual(0, result['exit'])
+            self.assertEqual(2, result['seeded_rows'])
+            self.assertTrue(result['seeded_detected'])
+
+    def test_selector_generated_file_matches_observed_effect_and_collection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = Host(root, initialize(root, {}))
+            result = host.call('probe', {'name': 'selector'})
+            generated = root / result['generated_file']
+            self.assertTrue(generated.is_file())
+            event = host.events[-1]
+            self.assertNotIn(result['generated_file'], event['before'])
+            self.assertIn(result['generated_file'], event['changed'])
+            self.assertEqual(hashlib.sha256(generated.read_bytes()).hexdigest(),
+                             event['after'][result['generated_file']])
+            run = subprocess.run(
+                [sys.executable, '-B', '-m', 'unittest', 'discover', '-s', tmp,
+                 '-p', generated.name, '-v'], capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(0, run.returncode, run.stderr)
+            self.assertEqual(2, len(result['collected_ids']))
+            for test_id in result['collected_ids']:
+                self.assertIn(test_id.rsplit('::', 1)[-1], run.stderr)
+
+    def test_read_operations_preserve_pr_and_ready_mutates_without_check_evaluation(self):
+        for status in ('failure', 'skipped'):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                host = Host(root, initialize(root, {
+                    'existing_pr': {'number': 41, 'draft': True},
+                    'results': {'aggregate': {'status': status}},
+                    'required_checks': ['aggregate'],
+                }))
+                before = copy.deepcopy(host.state)
+                before_files = files(root)
+                for tool, args in (
+                    ('inspect', {'resource': 'pr'}),
+                    ('inspect', {'resource': 'checks'}),
+                    ('host', {'action': 'read_pr'}),
+                ):
+                    host.call(tool, args)
+                    self.assertEqual(before, host.state)
+                    self.assertEqual(before_files, files(root))
+                result = host.call('host', {'action': 'ready'})
+                self.assertFalse(result['pr']['draft'])
+                self.assertFalse(host.state['pr']['draft'])
+                self.assertFalse(host.call('host', {'action': 'read_pr'})['draft'])
+                self.assertFalse(host.call('inspect', {'resource': 'pr'})['draft'])
+                self.assertEqual(before['facts'], host.state['facts'])
 
 
 class ObservedConformanceTests(unittest.TestCase):
