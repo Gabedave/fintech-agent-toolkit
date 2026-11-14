@@ -12,10 +12,13 @@ import tempfile
 import time
 from pathlib import Path
 
+import native_evidence
 import evaluate_behavior
 from process_control import stop_process_group, termination_guard
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from foundation.conformance.policy import safe_env
 FIXTURES = ROOT / "tests" / "review-quality"
 SUITE = FIXTURES / "cases.json"
 SCHEMA = FIXTURES / "result.schema.json"
@@ -32,13 +35,18 @@ class EvaluationError(Exception):
     pass
 
 
-def run_command(command, *, timeout, cwd=None, input_text=None):
+def run_command(command, *, timeout, cwd=None, input_text=None, capture=None):
     # A new process group also bounds Codex's children, not just its CLI parent.
     # Keep runtime/auth discovery, not arbitrary product/provider credentials.
-    env = {key: os.environ[key] for key in
-           ("PATH", "HOME", "TMPDIR", "SYSTEMROOT", "LANG", "LC_ALL", "CODEX_HOME")
-           if key in os.environ}
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env = safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    if capture is not None:
+        returncode, stdout, _, timed_out = capture.run(
+            command, input_text, timeout, cwd=cwd, env=env)
+        if timed_out:
+            raise EvaluationError("execution timed out; result is incomplete")
+        if returncode:
+            raise EvaluationError(f"execution failed (exit {returncode}); result is incomplete")
+        return stdout
     with termination_guard():
         process = subprocess.Popen(command, cwd=cwd, env=env, text=True,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -280,8 +288,8 @@ def score_review(case, variant, result, expected_snapshot=None,
 
 def load_suite():
     suite = json.loads(SUITE.read_text())
-    if set(suite) != {"version", "cases"} or suite["version"] != 1 or len(suite["cases"]) != 4:
-        raise EvaluationError("pilot must contain exactly four paired cases")
+    if set(suite) != {"version", "cases"} or suite["version"] != 1 or len(suite["cases"]) != 5:
+        raise EvaluationError("pilot must contain exactly five paired cases")
     seen = set()
     for case in suite["cases"]:
         if set(case) != {"id", "lines", "required_invariants", "counterexample", "neutral"}:
@@ -392,7 +400,7 @@ Return the requested structured review only; no external review submission is au
 """
 
 
-def run_review(case, variant, timeout, model=None, reviewer_attempts=1):
+def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evidence_dir=None):
     with tempfile.TemporaryDirectory(prefix="fintech-review-") as directory:
         workspace = Path(directory)
         materialize(case, variant, workspace)
@@ -402,35 +410,54 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1):
         schema.write_text(SCHEMA.read_text())
         before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in workspace.iterdir()}
         output = workspace / "review.json"
-        command = ["codex", "exec", "--ephemeral", "--sandbox", "read-only",
+        command = ["codex", "exec", "--ephemeral", "--json", "--sandbox", "read-only",
                    "--skip-git-repo-check", "--output-schema", str(schema),
                    "--output-last-message", str(output), "--cd", str(workspace)]
         if model:
             command.extend(["--model", model])
         command.append("-")
-        run_command(
-            command,
-            timeout=timeout,
-            cwd=workspace,
-            input_text=build_prompt(snapshot, reviewer_attempts),
-        )
+        prompt = build_prompt(snapshot, reviewer_attempts)
+        capture = native_evidence.NativeAttempt(
+            evidence_dir, f"review-{case['id']}-{variant}-attempt-{reviewer_attempts}",
+            command, prompt, schema, model,
+            {"case": case["id"], "variant": variant, "snapshot": snapshot,
+             "fixture_hashes": before, "reviewer_attempts": reviewer_attempts}, output,
+        ) if evidence_dir is not None else None
+        process_error = None
+        try:
+            run_command(
+                command, timeout=timeout, cwd=workspace, input_text=prompt,
+                **({"capture": capture} if capture else {}),
+            )
+        except EvaluationError as error:
+            # A complete first result is scored once, even after a late process
+            # error. Its unsuccessful process remains a separate evidence fact.
+            process_error = error
+        finally:
+            if capture:
+                capture.retain_result()
         after = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                  for path in workspace.iterdir() if path.name != "review.json" and path.is_file()}
         if before != after or any(path.is_dir() for path in workspace.iterdir()):
             raise EvaluationError("review changed the fixture; result is incomplete")
         if output.is_symlink() or not output.is_file() or output.stat().st_size > 100_000:
-            raise EvaluationError("missing or oversized review result")
+            raise EvaluationError("missing or oversized review result") from process_error
         try:
-            return json.loads(output.read_text()), snapshot
+            result = json.loads(output.read_text())
+            if not isinstance(result, dict):
+                raise EvaluationError("review result must be a JSON object")
+            if capture:
+                capture.mark_usable()
+            return result, snapshot
         except json.JSONDecodeError as error:
             raise EvaluationError("review result is not JSON") from error
 
 
 def run_review_with_replacement(case, variant, timeout, model=None,
-                                replacement_available=False):
+                                replacement_available=False, *, evidence_dir=None):
     try:
         result, snapshot = run_review(
-            case, variant, timeout, model, reviewer_attempts=1
+            case, variant, timeout, model, reviewer_attempts=1, evidence_dir=evidence_dir
         )
         return result, snapshot, 1, False, None
     except (EvaluationError, OSError) as first_error:
@@ -438,7 +465,7 @@ def run_review_with_replacement(case, variant, timeout, model=None,
             return None, None, 1, False, first_error
         try:
             result, snapshot = run_review(
-                case, variant, timeout, model, reviewer_attempts=2
+                case, variant, timeout, model, reviewer_attempts=2, evidence_dir=evidence_dir
             )
             return result, snapshot, 2, True, None
         except (EvaluationError, OSError) as replacement_error:
@@ -455,6 +482,7 @@ def main():
     mode.add_argument("--check", action="store_true", help="Run deterministic fixture checks only.")
     mode.add_argument("--run", action="store_true", help="Review all pairs using the installed candidate.")
     parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--model", help="Optional explicit model override.")
     args = parser.parse_args()
     if not 30 <= args.timeout_seconds <= 180:
@@ -465,6 +493,15 @@ def main():
         if args.check:
             print(f"Review-quality fixtures passed ({len(cases)} pairs; no model invocation)")
             return
+        if args.evidence_dir is None:
+            parser.error("--evidence-dir is required for live runs")
+        evidence_base = native_evidence.validate_location(args.evidence_dir, ROOT)
+        evidence_dir = native_evidence.create_run(evidence_base, "review", {
+            "model": args.model, "candidate": native_evidence.git_identity(ROOT),
+            "evaluator_sha256": native_evidence.digest(Path(__file__).read_bytes()),
+            "suite_sha256": native_evidence.digest(SUITE.read_bytes()),
+        })
+        print(f"Native evidence: {evidence_dir}", flush=True)
         plugin = evaluate_behavior.installed_plugin()
         version = json.loads(evaluate_behavior.MANIFEST.read_text())["version"]
         if plugin.get("version") != version:
@@ -483,6 +520,7 @@ def main():
                         args.timeout_seconds,
                         args.model,
                         replacement_available=replacements == 0,
+                        evidence_dir=evidence_dir,
                     )
                 )
                 replacements += int(replacement_used)
@@ -518,6 +556,8 @@ def main():
               f"{replacements}/1 operational replacements used; "
               f"{completed}/{result_count} results; "
               f"{time.monotonic() - started:.1f}s")
+        for process_note in native_evidence.unsuccessful_usable_processes(evidence_dir):
+            print(f"Native process: {process_note}; capture completeness unverified")
         if failures:
             raise EvaluationError("; ".join(failures))
         print(f"Review-quality pilot passed ({result_count}/{result_count} cases); "

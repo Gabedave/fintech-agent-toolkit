@@ -12,6 +12,13 @@ Do not invent findings. Style preference is not a blocker unless it creates a co
 
 Review correctness, invalid states, security boundaries, transactions, retries, timeouts, idempotency, partial failure, cleanup, resource use, contracts, migrations, dependencies, test quality, accessibility, privacy, observability, and maintainability where applicable.
 
+For `material-bound-required` work, inspect the pre-edit resource lifecycle record: the workload and
+growth dimension, ceiling, replica/concurrency multiplier, cleanup, safe saturation behaviour, and
+repository-owned proof and aggregate rollout signal. Confirm the bound without hiding a correctness or recovery failure; retained
+financial truth is not disposable cache. Missing essential bound or proof is not ready for team review;
+an unavailable required measurement leaves the review incomplete. `not-material` needs only the concrete
+reason, not a benchmark. Product-specific limits and commands belong to the repository verifier.
+
 For contested or high-risk design, also review the caller-facing data shape, alternatives considered, compatibility and rollback, ownership of mutable state, verification seam, and any implementation evidence that should have invalidated the selected design. Use this existing gate instead of creating a separate `interrogate` step.
 
 For every acceptance criterion retain:
@@ -19,6 +26,10 @@ For every acceptance criterion retain:
 `requirement -> changed seam -> focused evidence -> broad evidence -> status`
 
 Use `confirmed`, `partial`, `unverified`, or `failed`. A prior run, stale reviewer verdict, or successful check that did not exercise the changed behavior is not fresh evidence.
+
+Before reporting a command result, reconcile its complete captured output, exit status, test summary and coverage boundary. Warnings can coexist with a later successful summary; report both accurately. An exit code alone cannot establish that tests ran, and a passing existing suite does not establish coverage of a newly identified risk. Truncated or unavailable output leaves the affected claim unverified. Preserve valid defect findings independently of the command's result.
+
+Cite only external references actually consulted; local files/checks and research rationale belong in local verification/limitations.
 
 ### Changed-boundary proof
 
@@ -45,13 +56,13 @@ Keep the result compact, but always retain:
 - remaining findings, assumptions, and unverified risks;
 - the ADR assessment, reviewer-attempt count, and behavior-changing repair-cycle count.
 
-Keep confirmed and not-applicable items to one concise row or sentence each. Expand failed, partial, or unverified evidence and every blocker. Low- and medium-risk reviews may combine common fields into a concise record. High-risk reviews and reviews that repaired a blocker must show the invariant and reconciliation entries explicitly. During reconciliation, restate only changed evidence and dispositions plus the current snapshot identity; do not repeat unchanged record fields.
+Use one concise row/sentence per confirmed or not-applicable item; expand failed, partial or unverified evidence and blockers. Low/medium-risk reviews may combine common fields. High-risk or blocker-repair reviews must show invariants and reconciliation. Restate only changed evidence/dispositions and current snapshot identity during reconciliation.
+
+An initial blocking finding has reconciliation `pending`: remediation or an evidence response has not yet been reviewed. After reconsidering that response, use `resolved-by-implementation`, `resolved-by-evidence`, `still-blocking`, `downgraded`, or `human-decision-required` as supported. Reconciliation records this sequence independently of the candidate's readiness verdict.
 
 Report `INDEPENDENT REVIEW: PERFORMED` only for a context-isolated reviewer; otherwise report `INDEPENDENT REVIEW: NOT PERFORMED`. The current context-isolated reviewer counts as an attempt even when it must not delegate a replacement reviewer. On an initial pass, report `CONSENSUS: ACHIEVED` only for a ready candidate without unresolved blockers, `CONSENSUS: NOT ACHIEVED` for a blocking or incomplete result, and `CONSENSUS: HUMAN DECISION REQUIRED` only for an actual product-intent or risk-tolerance dispute. End with exactly one of `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.
 
-For toolkit plugin-behavior changes, completion evidence must include a live installed-candidate run from disposable Codex state. It must identify the clean candidate commit and manifest version and pass every checked-in behavior scenario. Deterministic routing and schema checks cannot substitute for this gate.
-
-Review-gate/evaluator changes additionally use the local paired review-quality pilot. Routing-smoke success proves workflow decisions, not defect detection. The pilot must reproduce the seeded defects and accept their fixed controls; missing, failed, or incomplete cases are not a passing pilot. Keep product regressions in their owning repositories and synthetic evaluation fixtures in the toolkit.
+Apply the applicable toolkit gates in [Final verification](../SKILL.md#final-verification). Missing, failed or incomplete cases cannot pass. Keep product regressions in owning repositories and synthetic evaluation fixtures in the toolkit.
 
 ## Stopping rules
 

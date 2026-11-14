@@ -1,0 +1,7 @@
+interface:
+  display_name: "Blast Radius"
+  short_description: "Map affected repositories and contracts"
+  default_prompt: "Use $blast-radius to map the complete impact of this proposed change before implementation."
+
+policy:
+  allow_implicit_invocation: true

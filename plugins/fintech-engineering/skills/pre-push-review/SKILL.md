@@ -9,7 +9,7 @@ Perform the final evidence-backed quality gate without claiming software is defe
 
 ## Scope and snapshot
 
-1. Read applicable repository instructions and recover the ticket's acceptance criteria.
+1. Read applicable repository instructions and recover the independently fixed acceptance criteria.
 2. Inspect the complete intended diff, including untracked files, against the correct merge base.
 3. Exclude unrelated user work and record the candidate commit or diff identity.
 4. When a pull request is requested, independently resolve the repository default and selected PR base, then inspect the candidate commit set and complete diff against that base. Require an explicit user or ticket source for a non-default target; unexplained branch-only commits block readiness.
@@ -36,10 +36,8 @@ Always read [references/review-protocol.md](references/review-protocol.md) for s
 
 Freeze the final diff and run the broadest checks proportionate to risk. Confirm no secret, customer data, generated noise, or unrelated file entered the change. Do not commit, push, open a pull request, merge, or deploy unless the user authorized that action.
 
-For an authorized push, independently refresh the selected base and run the plugin's `scripts/verify_merge_candidate.py` with a repository-owned lightweight check. Accept readiness only when the disposable combined tree is conflict-free and the supplied check passes. Record the exact base and head SHAs; branch-only verification is stale evidence for this gate.
+For an authorized push, this skill owns the single synthetic-merge check. Follow [merge readiness and reuse](../fintech-mode/references/implementation-readiness.md#synthetic-merge-readiness); other skills consume that result. Branch-only success never substitutes for combined-tree proof.
 
-For a change to this toolkit's plugin behavior, deterministic validation is necessary but not sufficient. Install the exact clean candidate commit into disposable Codex state, run every model-backed behavior scenario through `scripts/release_smoke.py`, and retain the reported plugin version, commit, and pass count in the pull request. A missing, partial, version-mismatched, or failed live result is `NOT READY FOR TEAM REVIEW`.
-
-When changing this review gate or its review-quality evaluator/fixtures, also run the bounded local pilot with `scripts/release_smoke.py --review-quality`. Report reproduced defects, accepted fixed controls, false blockers, and elapsed time. It supplements the existing gate; it is not another product reviewer or proof of general review accuracy.
+For toolkit plugin-behavior or review-gate/evaluator changes, read [toolkit verification](references/toolkit-verification.md) before selecting checks. Its full installed-candidate and applicable review-quality gates remain mandatory before team-ready or release claims.
 
 Use the protocol's compact review record, expanding high-risk or repaired reviews rather than omitting their evidence. End with exactly one status: `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.

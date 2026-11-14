@@ -12,7 +12,7 @@ Answer historical-intent questions with traceable evidence. Keep the investigati
 1. Define the decision or behavior whose origin is in question.
 2. Trace the current runtime behavior enough to identify the owning lines, contract, and callers.
 3. Inspect `git log`, `git blame`, and the introducing or materially changing commits.
-4. Follow linked pull requests and issue-tracker records. Search available design documents and team records only when relevant and authorized.
+4. Follow linked pull requests and issue-tracker items. Search available design documents and team records only when relevant and authorized.
 5. Use privacy-safe aggregate observability evidence when it explains an operational constraint; never reproduce raw customer or provider data.
 6. Record empty searches so missing evidence is explicit.
 

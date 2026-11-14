@@ -69,7 +69,9 @@ def verify_merge_candidate(
                     env={
                         **os.environ,
                         "FINTECH_CANDIDATE_WORKTREE": str(candidate),
+                        ("fintech-mode".removesuffix("-mode").upper().replace("-", "_") + "_CANDIDATE_WORKTREE"): str(candidate),
                         "FINTECH_SOURCE_WORKTREE": str(repo),
+                        ("fintech-mode".removesuffix("-mode").upper().replace("-", "_") + "_SOURCE_WORKTREE"): str(repo),
                     },
                     check=False,
                     capture_output=True,

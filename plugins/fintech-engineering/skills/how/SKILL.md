@@ -7,6 +7,19 @@ description: Explain how a fintech system, feature, or runtime path currently wo
 
 Build a trustworthy current-system model before proposing or reviewing a change. This skill explains what the system demonstrably does; use `$why` separately when historical intent matters.
 
+Before selecting probes, interpreting verification or runtime evidence, or making a material evidence claim, read [operation and claim scope](../fintech-mode/references/acceptance-and-evidence.md#operation-and-claim-scope), including when this skill is entered directly for a read-only investigation.
+
+## Choose source scope
+
+Choose the evidence boundary from explicit task/source context before resolving authority:
+
+- **Supplied-source explanation:** for a clearly synthetic/unhosted fixture or an expressly requested local-snapshot explanation, host inspection is not a prerequisite. Read the supplied source, helpers and explanation reference; cite paths and lines, identify the supplied snapshot (local revision/digest and dirty state where available), and state that canonical currency and production behavior remain unverified. An unhosted fixture needs no repository snapshot helper.
+- **Hosted current-source claims:** before making these claims, resolve the repository's default branch and authoritative base SHA from its host. Run the installed plugin's [snapshot helper](../../scripts/verify_repository_snapshot.py) with the local base ref and authoritative base SHA, then record the exact head, divergence, authority state, and dirty state. A local ref or supplied assertion is not host confirmation.
+
+A missing remote, network restriction or failed host command does not change the source scope. When authority is unavailable, hosted current-source claims remain blocked. An explicitly bounded local-snapshot explanation may still proceed with that limitation; it does not satisfy hosted PR, installed-byte, aggregate-gate or combined-tree proof.
+
+Treat `attention` as a source-selection decision, not permission to repair the checkout. Prefer read-only host inspection or, when local writes are authorized, a disposable worktree at the authoritative revision. The preflight and this skill must not update or clean the user's checkout.
+
 ## Trace the real path
 
 1. Define the user, operator, job, API, or provider boundary being explained.

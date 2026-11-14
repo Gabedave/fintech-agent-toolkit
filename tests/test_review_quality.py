@@ -391,7 +391,9 @@ class ReviewQualityFixtures(unittest.TestCase):
         version = json.loads(quality.evaluate_behavior.MANIFEST.read_text())["version"]
         output = io.StringIO()
         errors = io.StringIO()
-        argv = ["evaluate_review_quality.py", "--run"]
+        evidence = tempfile.TemporaryDirectory()
+        self.addCleanup(evidence.cleanup)
+        argv = ["evaluate_review_quality.py", "--run", "--evidence-dir", evidence.name]
         with mock.patch.object(sys, "argv", argv), mock.patch.object(
             quality, "load_suite", return_value=cases
         ), mock.patch.object(

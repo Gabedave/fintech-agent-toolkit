@@ -1,0 +1,7 @@
+interface:
+  display_name: "Architect"
+  short_description: "Compare caller-first designs before implementation"
+  default_prompt: "Use $architect to design and compare safe caller-first boundaries for this {{AUDIENCE}} change."
+
+policy:
+  allow_implicit_invocation: true

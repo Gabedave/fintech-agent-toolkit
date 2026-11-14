@@ -1,0 +1,7 @@
+interface:
+  display_name: "Why"
+  short_description: "Trace engineering decisions to source evidence"
+  default_prompt: "Use $why to explain the historical evidence behind this engineering decision."
+
+policy:
+  allow_implicit_invocation: true
