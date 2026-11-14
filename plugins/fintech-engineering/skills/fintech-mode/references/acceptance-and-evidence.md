@@ -24,6 +24,8 @@ Build updates from established facts, retaining their subject, revision, actor a
 
 A generic duplicate-row probe proves only its exercised subject. It does not establish a losing transaction, ownership-loss effect or rollback in another path. Unchanged financial state establishes preservation, not an unexecuted rollback. When proving saturation, exercise the actual resource-admission operation at the named ceiling; a generic rejection cannot establish that capacity admission was refused. Retain the current-owner or under-capacity success control where the invariant requires it.
 
+Give the requested readiness conclusion about the assessed subject, with its verified limits. Keep that conclusion separate from current lifecycle state and permission to change it; evidence being ready for review does not answer whether the subject is ready.
+
 Report independently established facts by layer. For example, verified source/installed identity can coexist with unavailable runtime proof; one blocked layer does not turn another layer's observed validation into an unknown. Keep definitive rejection, ambiguous provider outcome, replay safety and actual durable effects distinct instead of inferring one from another.
 
 ## CI inclusion and aggregate readiness
