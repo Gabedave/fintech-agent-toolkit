@@ -143,6 +143,184 @@ class HostEvidenceRegressionTests(unittest.TestCase):
                 self.assertEqual(before['facts'], host.state['facts'])
 
 
+class RefactorSourceProofTests(unittest.TestCase):
+    def make_host(self, root, facts=None):
+        return Host(root, initialize(root, facts if facts is not None else {
+            'change': 'behavior-preserving refactor',
+        }))
+
+    def test_refactor_controls_execute_editable_invariants_with_source_and_test_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = self.make_host(root)
+            source = (root / 'src/settlement.py').read_bytes()
+            before = files(root)
+            result = host.call('probe', {'name': 'controls'})
+            self.assertEqual(hashlib.sha256(source).hexdigest(), result.get('executed_source_sha256'))
+            self.assertIn(b'def post_once(', source)
+            self.assertEqual((5, 5, 0), tuple(result[k] for k in
+                             ('passing_controls', 'detected_variants', 'exit')))
+            self.assertTrue(result['scope']['production_code_executed'])
+            self.assertFalse(result['scope']['verifies_changed_source'])
+            self.assertEqual(before, files(root))
+            for row in result['executed_controls']:
+                with self.subTest(control=row['name']):
+                    self.assertEqual('foundation.conformance.host._settlement_assertion[' + row['name'] + ']', row['test'])
+                    self.assertEqual(result['executed_source_sha256'], row['control']['executed_source_sha256'])
+                    self.assertNotEqual(row['control']['executed_source_sha256'], row['seeded']['executed_source_sha256'])
+                    self.assertTrue(row['control']['passes'])
+                    self.assertFalse(row['seeded']['passes'])
+                    self.assertNotEqual(row['control']['effects'], row['seeded']['effects'])
+            rows = {row['name']: row for row in result['executed_controls']}
+            self.assertEqual(0, rows['rejection']['control']['observed'])
+            self.assertEqual(1, rows['rejection']['seeded']['observed'])
+            self.assertEqual('pending_reconciliation', rows['ambiguity']['control']['observed'])
+            self.assertEqual('rejected', rows['ambiguity']['seeded']['observed'])
+            self.assertEqual(1, rows['replay']['control']['observed'])
+            self.assertEqual(2, rows['replay']['seeded']['observed'])
+            for name in ('ownership', 'identity'):
+                self.assertEqual(0, rows[name]['control']['observed'])
+                self.assertGreater(rows[name]['seeded']['observed'], 0)
+
+    def test_each_source_mutation_changes_the_baseline_assertion_itself(self):
+        from unittest.mock import patch
+        from foundation.conformance import host as module
+        for name, changed in module.REFACTOR_UNSAFE_SOURCES.items():
+            with self.subTest(control=name), tempfile.TemporaryDirectory() as tmp:
+                # Test-only trust-root substitution: now the control itself runs
+                # broken source, independently of seeded-result reporting.
+                with patch.object(module, 'REFACTOR_BASELINE', changed):
+                    host = self.make_host(Path(tmp))
+                    result = host.call('probe', {'name': 'controls'})
+                rows = {row['name']: row for row in result['executed_controls']}
+                self.assertFalse(rows[name]['control']['passes'])
+                self.assertEqual(4, result['passing_controls'])
+                self.assertEqual(1, result['exit'])
+                self.assertEqual(hashlib.sha256(changed).hexdigest(), result['executed_source_sha256'])
+                self.assertTrue(all(row['control']['passes'] for key, row in rows.items() if key != name))
+
+    def test_changed_missing_and_malicious_source_are_rejected_before_execution_or_database(self):
+        from unittest.mock import patch
+        for mutation in ('changed', 'missing', 'malicious'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                host = self.make_host(root)
+                source = root / 'src/settlement.py'
+                marker = root / 'arbitrary-code-ran'
+                if mutation == 'missing':
+                    source.unlink()
+                elif mutation == 'changed':
+                    source.write_bytes(source.read_bytes() + b'# harmless edit still unsupported\n')
+                else:
+                    source.write_text('open(' + repr(str(marker)) + ', "w").write("ran")\n')
+                before = files(root)
+                with patch('builtins.exec', side_effect=AssertionError('execution before trust check')), patch(
+                    'foundation.conformance.host.database', side_effect=AssertionError('database before trust check')):
+                    result = host.call('probe', {'name': 'controls'})
+                self.assertEqual(1, result.get('exit'), result)
+                self.assertFalse(result['semantic_assertion_reached'])
+                self.assertEqual(0, result['passing_controls'])
+                self.assertEqual(0, result['detected_variants'])
+                self.assertEqual([], result['executed_controls'])
+                self.assertNotIn('executed_source_sha256', result)
+                self.assertFalse(marker.exists())
+                self.assertEqual(before, files(root))
+                self.assertEqual([], host.events[-1]['changed'])
+
+    def test_source_is_captured_once_and_the_captured_bytes_are_executed(self):
+        from unittest.mock import patch
+        from foundation.conformance import host as module
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = self.make_host(root)
+            source = root / 'src/settlement.py'
+            captured = source.read_bytes()
+            reads = []
+            compiled = []
+            original_read = Path.read_bytes
+            original_compile = compile
+            def read_once(path):
+                if path == source:
+                    reads.append(path)
+                    self.assertEqual(1, len(reads))
+                return original_read(path)
+            def replace_after_capture(raw, filename, mode, *args, **kwargs):
+                if filename == 'src/settlement.py' or filename.startswith('trusted-unsafe-settlement-'):
+                    compiled.append(raw)
+                if filename == 'src/settlement.py':
+                    source.write_text('raise RuntimeError("later workspace bytes must not execute")\n')
+                return original_compile(raw, filename, mode, *args, **kwargs)
+            # Probe boundary only: Host.call separately reads files for its audit snapshots.
+            with patch.object(Path, 'read_bytes', read_once), patch('builtins.compile', replace_after_capture):
+                result = host._call('probe', {'name': 'controls'})
+            self.assertEqual([source], reads)
+            self.assertEqual(captured, compiled[0])
+            self.assertEqual(6, len(compiled))
+            self.assertEqual(list(module.REFACTOR_UNSAFE_SOURCES.values()), compiled[1:])
+            self.assertTrue(all(raw in [captured, *module.REFACTOR_UNSAFE_SOURCES.values()] for raw in compiled))
+            self.assertEqual((5, 5), (result['passing_controls'], result['detected_variants']))
+            self.assertEqual(hashlib.sha256(captured).hexdigest(), result['executed_source_sha256'])
+            self.assertNotEqual(captured, source.read_bytes())
+
+    def test_successful_pre_edit_proof_does_not_verify_an_edited_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = self.make_host(root)
+            first = host.call('probe', {'name': 'controls'})
+            source = (root / 'src/settlement.py').read_text()
+            host.call('edit', {'path': 'src/settlement.py', 'content': '# refactored\n' + source})
+            after_edit = files(root)
+            second = host.call('probe', {'name': 'controls'})
+            self.assertEqual((5, 5), (first['passing_controls'], first['detected_variants']))
+            self.assertEqual('refactor control source changed or unsupported', second['cause'])
+            self.assertFalse(second['semantic_assertion_reached'])
+            self.assertNotIn('executed_source_sha256', second)
+            self.assertEqual(after_edit, files(root))
+            self.assertEqual([], host.events[-1]['changed'])
+
+    def test_refactor_selection_uses_change_fact_without_oracle_or_recorded_counts(self):
+        from foundation.conformance import host as module
+        for facts in ({'change': 'behavior-preserving refactor'},
+                      {'change': 'behavior-preserving refactor', 'known_defect': True,
+                       'recorded_pre_edit_controls': 0, 'controlled_unsafe_variants_detected': 0}):
+            with self.subTest(facts=facts), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                host = self.make_host(root, facts)
+                self.assertEqual(module.REFACTOR_BASELINE, (root / 'src/settlement.py').read_bytes())
+                self.assertEqual(5, host.call('probe', {'name': 'controls'})['passing_controls'])
+
+    def test_requirements_describe_supplied_fields_without_inventing_a_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            host = self.make_host(Path(tmp))
+            requirements = host.call('inspect', {'resource': 'requirements'})
+            self.assertEqual([], requirements['trusted_checks'])
+            self.assertIsNone(requirements['candidate_profile'])
+            self.assertEqual([], requirements['effective'])
+            self.assertEqual('not supplied in facts', requirements['applicability']['candidate_profile'])
+            self.assertEqual('trusted initial src/settlement.py only', requirements['applicability']['controls'])
+            self.assertFalse(requirements['applicability']['product_integration_modeled'])
+
+    def test_generic_controls_remain_explicitly_generic_and_do_not_execute_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            host = self.make_host(root, {'known_defect': False})
+            (root / 'src/settlement.py').write_text('raise RuntimeError("generic must not execute this")\n')
+            result = host.call('probe', {'name': 'controls'})
+            self.assertEqual((5, 5, 0), tuple(result[k] for k in
+                             ('passing_controls', 'detected_variants', 'exit')))
+            self.assertFalse(result['scope']['production_code_executed'])
+            self.assertNotIn('executed_source_sha256', result)
+            self.assertEqual('generic SQL/state controls', result['scope']['subject'])
+
+    def test_existing_refactor_evaluator_contract_remains_accepted(self):
+        data = load_cases()
+        case, variant = data['cases'][0], data['cases'][0]['variants'][1]
+        with tempfile.TemporaryDirectory() as tmp:
+            observation = control_observation(case, variant, Path(tmp))
+            result = sensitivity_score(case, variant, observation)
+            self.assertEqual('pass', result['status'], result)
+
+
 class ObservedConformanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
