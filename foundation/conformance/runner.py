@@ -547,7 +547,6 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
         }
     }
     config_path = private / 'host-config.json'
-    config_path.write_text(json.dumps(config))
     host_path = Path(__file__).with_name('host.py').resolve()
     command=['codex','exec','--json','--ephemeral','--skip-git-repo-check',
              '--sandbox','read-only','--disable','shell_tool','--disable','unified_exec','-C',str(workspace),
@@ -557,11 +556,18 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     command[2:2] = workbench_permissions()
     if args.model:
         command[2:2] = ['--model', args.model]
+    from .handshake_diagnostics import binding as handshake_binding, canonical, sha, snapshot
+    handshake_live = private / 'host-handshake-live.jsonl'
+    config['handshake_diagnostics'] = {'path': str(handshake_live), 'command_sha256': sha(canonical(command))}
+    config_raw = json.dumps(config).encode()
+    config_path.write_bytes(config_raw)
+    handshake_expected = handshake_binding(config_raw, host_path.read_bytes())
     prompt = prompt_for(case, variant, profile, implicit)
     (private / 'prompt.txt').write_text(prompt)
     from .source_binding import prepare_launch
     prepare_launch(private, command, Path(__file__).parent, config_path)
     raw = stream_process(command, safe_env(home), workspace, private, args.timeout_seconds, prompt)
+    handshake = snapshot(handshake_live, private / 'host-handshake.jsonl', handshake_expected)
     if getattr(args, 'policy', None):
         verify_policy(home, args.policy)
     events, journal_complete = read_host_capture(journal, lines=True)
@@ -601,6 +607,8 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     obs['denied_attempts'] = denied_attempts
     obs['raw_attempts'] = attempts
     obs['implicit_routing'] = implicit
+    if handshake.get('path'):
+        obs['observer_paths']['host_handshake'] = handshake['path']
     from .source_binding import postlaunch_sources
     metadata={'policy':getattr(args,'policy',None),'contract_binding':getattr(args,'contract_binding',None),'codex_config_sha256':getattr(args,'codex_config_sha256',None),'profile':profile,'profile_sha256':hashlib.sha256(Path(args.profile).read_bytes()).hexdigest(),
               'candidate':str(Path(args.candidate).resolve()),'candidate_revision':getattr(args,'candidate_revision',None),
@@ -615,6 +623,7 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
               'invocation':'implicit' if implicit else 'explicit','command':command,
               'executed_command':raw['command'], 'source_launch':raw.get('source_launch'),
               'source_files_after':postlaunch_sources(private, raw.get('source_launch')),
+              'handshake_diagnostics': handshake,
               'producer_run_dir':str(output)}
     if not metadata['model_observed']:
         metadata['model_observed'] = getattr(args, 'effective_model', None) or 'not reported; effective model unverified'
@@ -690,6 +699,9 @@ def seal_observed_run(output, case, variant, observation, metadata, profile_role
         ('capture', 'capture_metadata', 'observer/capture.json'))]
     for phase, path in observation.get('observer_paths', {}).get('authoritative_databases', {}).items():
         records.append(artifact(output, phase + '-authoritative-db', 'authoritative_database', path))
+    if observation.get('observer_paths', {}).get('host_handshake'):
+        records.append(artifact(output, 'host-handshake', 'host_handshake_diagnostics',
+                                observation['observer_paths']['host_handshake']))
     from .source_binding import artifacts
     records.extend(artifact(output, 'effect-source-' + str(number), 'effect_source', path)
                    for number, path in enumerate(artifacts(output / 'observer')))

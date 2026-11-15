@@ -52,10 +52,14 @@ def prepare_launch(observer_dir, configured_command, source_root, config_path):
     target.mkdir()
     sources = {}
     harness_digest, harness_files = tree_hash(source_root)
-    # Host imports only stdlib; selector.py is its one child implementation.
-    # The rest of the known harness is pinned by its complete byte/mode map,
-    # without duplicating the whole corpus into every operation fixture.
-    for name in ('host.py', 'selector.py'):
+    config_raw = Path(config_path).read_bytes()
+    config = json.loads(config_raw)
+    source_names = ['host.py', 'selector.py']
+    if config.get('handshake_diagnostics'):
+        source_names.append('handshake_diagnostics.py')
+    # Retain executed Host dependencies; other harness bytes remain pinned by
+    # the complete byte/mode map without copying the corpus into every run.
+    for name in source_names:
         source = source_root / name
         relative = source.relative_to(source_root)
         copy = target / 'source' / relative
@@ -64,8 +68,7 @@ def prepare_launch(observer_dir, configured_command, source_root, config_path):
         copy.chmod(stat.S_IMODE(source.stat().st_mode))
         sources[relative.as_posix()] = _record(root, copy)
     config_copy = target / 'host-config.json'
-    config_copy.write_bytes(Path(config_path).read_bytes())
-    config = json.loads(config_copy.read_bytes())
+    config_copy.write_bytes(config_raw)
     entry_path = Path(_settings(configured_command)['mcp_servers.workbench.args'][0])
     entry = target / 'host-entry.py'
     entry.write_bytes(entry_path.read_bytes())
@@ -81,6 +84,11 @@ def prepare_launch(observer_dir, configured_command, source_root, config_path):
               'config': _record(root, config_copy), 'sources': sources,
               'harness_digest': harness_digest, 'harness_files': harness_files,
               'run_identity': config['run_identity']}
+    if config.get('handshake_diagnostics'):
+        helper = target / 'handshake-entry.py'
+        helper.write_bytes(entry_path.with_name('handshake_diagnostics.py').read_bytes())
+        helper.chmod(stat.S_IMODE(entry_path.with_name('handshake_diagnostics.py').stat().st_mode))
+        launch['handshake'] = _record(root, helper)
     path = root / 'effect-launch.json'
     _save(path, launch)
     return path
@@ -147,6 +155,8 @@ def postlaunch_sources(observer_dir, reference):
         originals = {'entry': Path(launch['entry_path']),
                      'selector': Path(launch['entry_path']).with_name('selector.py'),
                      'config': Path(launch['config_path'])}
+        if 'handshake' in launch:
+            originals['handshake'] = Path(launch['entry_path']).with_name('handshake_diagnostics.py')
         if launch.get('purpose') == 'controlled-sensitivity':
             originals['producer'] = Path(launch['producer_path'])
             originals.update({'input:' + str(row['argument_index']): Path(row['original_path'])
@@ -190,6 +200,8 @@ def validate(observation):
             return None
         config = json.loads(_read(root, launch['config']))
         required_sources = ['entry', 'selector', 'config']
+        if config.get('handshake_diagnostics'):
+            required_sources.append('handshake')
         if launch.get('purpose') == 'controlled-sensitivity':
             required_sources.append('producer')
         if any(metadata['source_files_after'].get(name) != launch[name]['sha256'] for name in required_sources):
@@ -218,9 +230,14 @@ def validate(observation):
         if (_sha(_read(root, launch['entry'])) != canonical_files['host.py']['sha256']
                 or _sha(_read(root, launch['selector'])) != canonical_files['selector.py']['sha256']):
             return None
+        source_names = ['host.py', 'selector.py']
+        if config.get('handshake_diagnostics'):
+            source_names.append('handshake_diagnostics.py')
+            if _sha(_read(root, launch['handshake'])) != canonical_files['handshake_diagnostics.py']['sha256']:
+                return None
         if (_sha(encoded) != launch['harness_digest'] or launch['harness_digest'] != metadata['harness_digest']
                 or launch['harness_files'] != canonical_files or canonical_digest != launch['harness_digest']
-                or any(records[name] != canonical_files[name] for name in ('host.py', 'selector.py'))):
+                or any(records[name] != canonical_files[name] for name in source_names)):
             return None
         if launch['purpose'] == 'configured-workbench':
             if launch['executed_command'] != launch['configured_command']:

@@ -358,6 +358,35 @@ def sync_stores(root, state):
         (store / (key + '.json')).write_text(json.dumps(state[key], sort_keys=True, separators=(',', ':')) + '\n')
 
 
+def finance_identity_rejection(arguments, facts):
+    """Validate the existing five-field subject and owner/fence contract.
+
+    Missing authority is unavailable evidence, never a match between absent
+    fields. No amount range, identifier format or additional field is imposed.
+    """
+    authoritative = facts.get('authoritative')
+    fields = ('operation_id', 'attempt', 'tenant', 'amount_minor', 'currency')
+    required = {'operation_id': str, 'attempt': int, 'tenant': str,
+                'amount_minor': int, 'currency': str, 'owner': str, 'fence': int}
+    if (not isinstance(authoritative, dict)
+            or any(type(authoritative.get(key)) is not kind
+                   or (kind is str and not authoritative[key]) for key, kind in required.items())):
+        return {'error': 'authoritative financial identity unavailable or malformed'}
+    identity = arguments.get('identity', facts.get('presented', authoritative))
+    if not isinstance(identity, dict):
+        return {'error': 'presented financial identity must be an object'}
+    mismatches = [key for key in fields if type(identity.get(key)) is not required[key]
+                  or identity[key] != authoritative[key]]
+    if mismatches:
+        return {'rejected_fields': mismatches}
+    actor = arguments.get('actor', facts.get('actor', authoritative['owner']))
+    fence = arguments.get('fence', facts.get('actor_fence', authoritative['fence']))
+    if (type(actor) is not str or actor != authoritative['owner']
+            or type(fence) is not int or fence != authoritative['fence']):
+        return {'rejected_owner': actor}
+    return None
+
+
 def possible_file_effects(tool, arguments, facts):
     """Workspace effects of these exact branches, including call wrappers.
 
@@ -411,15 +440,7 @@ def possible_file_effects(tool, arguments, facts):
                     for key in ('amount_minor', 'currency', 'idempotency_key')):
                 database_paths('synthetic.sqlite')
         elif action == 'post':
-            authoritative = facts.get('authoritative', {})
-            identity = arguments.get('identity', facts.get('presented', authoritative))
-            if not isinstance(identity, dict):
-                return paths
-            actor = arguments.get('actor', facts.get('actor', authoritative.get('owner')))
-            fence = arguments.get('fence', facts.get('actor_fence', authoritative.get('fence')))
-            if (all(identity.get(key) == authoritative.get(key) for key in
-                    ('operation_id', 'attempt', 'tenant', 'amount_minor', 'currency'))
-                    and actor == authoritative.get('owner') and fence == authoritative.get('fence')):
+            if finance_identity_rejection(arguments, facts) is None:
                 database_paths('synthetic.sqlite')
         elif action not in {'query', 'retry', 'delete_recovery', 'reject', 'validate'}:
             return None
@@ -747,17 +768,12 @@ class Host:
                         s['postings'] = db.execute('SELECT COUNT(*) FROM ledger').fetchone()[0]
                     s['operation_status'] = 'succeeded'
             elif action in {'post', 'validate'}:
-                identity = a.get('identity', f.get('presented', f.get('authoritative', {})))
-                authoritative = f.get('authoritative', {})
-                mismatches = [k for k in ('operation_id', 'attempt', 'tenant', 'amount_minor', 'currency') if identity.get(k) != authoritative.get(k)]
-                actor = a.get('actor', f.get('actor', authoritative.get('owner')))
-                fence = a.get('fence', f.get('actor_fence', authoritative.get('fence')))
-                if mismatches:
-                    return {'rejected_fields': mismatches}
-                if actor != authoritative.get('owner') or fence != authoritative.get('fence'):
-                    return {'rejected_owner': actor}
+                rejection = finance_identity_rejection(a, f)
+                if rejection is not None:
+                    return rejection
                 if action == 'validate':
                     return {'validated': True}
+                identity = a.get('identity', f.get('presented', f['authoritative']))
                 with database(self.root / 'synthetic.sqlite') as db:
                     db.execute(
                         'INSERT OR IGNORE INTO ledger VALUES(?,?)',
@@ -791,7 +807,20 @@ class Host:
 
 
 def main():
-    config = json.loads(Path(sys.argv[1]).read_text())
+    config_raw = Path(sys.argv[1]).read_bytes()
+    config = json.loads(config_raw)
+    diagnostics = None
+    if config.get('handshake_diagnostics'):
+        try:
+            if __package__:
+                from .handshake_diagnostics import HandshakeDiagnostics
+            else:
+                from handshake_diagnostics import HandshakeDiagnostics
+            diagnostics = HandshakeDiagnostics(config_raw, Path(__file__).read_bytes())
+        except Exception:
+            # Optional evidence must not change MCP behavior. The observer
+            # reports missing diagnostics rather than inventing a handshake.
+            pass
     host = Host(
         config['workspace'],
         json.loads(Path(config['state']).read_text()),
@@ -799,10 +828,13 @@ def main():
         config.get('installed')
     )
     for line in sys.stdin:
+        method, ident = None, None
         try:
             request = json.loads(line)
             method = request.get('method')
             ident = request.get('id')
+            if diagnostics:
+                diagnostics.request(method, ident)
             if method == 'initialize':
                 result = {
                     'protocolVersion': '2024-11-05',
@@ -821,12 +853,19 @@ def main():
                     continue
                 result = {}
             if ident is not None:
+                response_started_ns = time.monotonic_ns()
                 print(json.dumps({'jsonrpc': '2.0', 'id': ident, 'result': result}), flush=True)
+                if diagnostics:
+                    diagnostics.response(method, ident, result, response_started_ns)
         except Exception as error:
+            if diagnostics:
+                diagnostics.error(method, ident, error)
             print(
                 json.dumps({'jsonrpc': '2.0', 'id': request.get('id'), 'error': {'code': -32603, 'message': str(error)}}),
                 flush = True
             )
+    if diagnostics:
+        diagnostics.finish()
 
 if __name__ == '__main__':
     main()
