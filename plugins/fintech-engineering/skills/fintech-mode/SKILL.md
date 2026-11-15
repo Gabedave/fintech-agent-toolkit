@@ -1,6 +1,6 @@
 ---
 name: fintech-mode
-description: Route any task in a fintech product repository through the proportionate default engineering workflow, including choosing the no-playbook path for a small mechanical edit. Use without waiting for the user to name supporting skills; do not use for unrelated general questions.
+description: Route any task in a fintech product repository through the proportionate default engineering workflow, including choosing the no-playbook path for a small mechanical edit. Use without waiting for the user to name supporting skills; do not use for unrelated general questions. For decision-only tasks, read policy before returning the decision; keep progress out of result fields.
 ---
 
 # Fintech Mode

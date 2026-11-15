@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "d327f3d9e4b86025775af99fd2410f4560450289",
+  "source_commit": "abd2cf292663b4a1cf7c8432284e0ee918d24ce4",
   "plugin_name": "fintech-engineering",
   "plugin_version": "0.2.32",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
     "version": "1.0.32",
-    "commit": "d327f3d9e4b86025775af99fd2410f4560450289",
-    "digest": "78f3c9952820e30f6e0229f7d913cecd64334919b9d5bf7f2deebee31f5fc920"
+    "commit": "abd2cf292663b4a1cf7c8432284e0ee918d24ce4",
+    "digest": "4051fd02b1fa601953de71663ac246fbcfeb9597dcb0fd07b9e6d7550622b892"
   },
   "adapter_revision": "1.0.11",
   "profile_digest": "7e905c5eb10d8118388a91130ff4e8179c897ec2308c81ff2a4966b33a32506c",
@@ -70,7 +70,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/SKILL.md": {
-      "sha256": "be9e3349a4a0c623f1078c927d42a611fd37b5b732a2aeb44cd20f8eb195ffc9",
+      "sha256": "2b307b462509933d57c11717b097a873c73dbf86daec798fc1922f531d8dc791",
       "mode": "0644"
     },
     "skills/fintech-mode/agents/openai.yaml": {
@@ -230,5 +230,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "362ea3b829bf45035a5545d9bd31611f3391ff0de3fc742aff3b070b39808c04"
+  "content_digest": "4f60541156b0d632f8e1be74755a367f5619cebe0b3e97bec3713207c8353ebd"
 }
