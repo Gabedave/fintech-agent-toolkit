@@ -433,24 +433,29 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
             # A complete first result is scored once, even after a late process
             # error. Its unsuccessful process remains a separate evidence fact.
             process_error = error
-        finally:
-            if capture:
-                capture.retain_result()
         after = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                  for path in workspace.iterdir() if path.name != "review.json" and path.is_file()}
         if before != after or any(path.is_dir() for path in workspace.iterdir()):
             raise EvaluationError("review changed the fixture; result is incomplete")
-        if output.is_symlink() or not output.is_file() or output.stat().st_size > 100_000:
-            raise EvaluationError("missing or oversized review result") from process_error
         try:
-            result = json.loads(output.read_text())
+            if capture:
+                data = capture.read_result()
+            else:
+                if output.is_symlink() or not output.is_file() or output.stat().st_size > 100_000:
+                    raise EvaluationError("missing or oversized review result") from process_error
+                data = output.read_text()
+            if len(data) > 100_000:
+                raise EvaluationError("missing or oversized review result") from process_error
+            result = json.loads(data)
             if not isinstance(result, dict):
                 raise EvaluationError("review result must be a JSON object")
             if capture:
-                capture.mark_usable()
+                capture.mark_usable(result)
             return result, snapshot
         except json.JSONDecodeError as error:
             raise EvaluationError("review result is not JSON") from error
+        except (OSError, ValueError) as error:
+            raise EvaluationError(f"review result binding unavailable: {error}") from error
 
 
 def run_review_with_replacement(case, variant, timeout, model=None,

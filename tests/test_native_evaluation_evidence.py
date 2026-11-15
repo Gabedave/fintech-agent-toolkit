@@ -160,5 +160,170 @@ class NativeEvidenceTests(unittest.TestCase):
                 evidence.validate_location(Path(directory) / "captures", Path(directory))
 
 
+class RetainedResultBindingTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def captured_cli(self, raw, ending="succeeded", after_capture=None):
+        """Real local capture, with deterministic process-outcome/final-path seams."""
+        original_popen = evidence.subprocess.Popen
+        original_run = evidence.NativeAttempt.run
+        attempts = []
+        def local_cli(command, **kwargs):
+            output = command[command.index("--output-last-message") + 1]
+            program = "import sys; from pathlib import Path; "
+            if raw is not None:
+                program += f"Path({output!r}).write_bytes({raw!r}); "
+            program += "print('{\"type\":\"turn.completed\"}', flush=True); "
+            program += "sys.exit(7)" if ending == "nonzero" else "sys.exit(0)"
+            process = original_popen([sys.executable, "-B", "-c", program], **kwargs)
+            if ending == "timed_out":
+                communicate = process.communicate
+                def completed_then_timeout(*args, **kw):
+                    communicate(*args, **kw)
+                    process.communicate = communicate
+                    raise evidence.subprocess.TimeoutExpired(command, kw.get("timeout"))
+                process.communicate = completed_then_timeout
+            return process
+        def run_then_swap(attempt, *args, **kwargs):
+            result = original_run(attempt, *args, **kwargs)
+            attempts.append(attempt)
+            if after_capture:
+                after_capture(attempt)
+            return result
+        with mock.patch.object(evidence.subprocess, "Popen", side_effect=local_cli), mock.patch.object(
+                evidence.NativeAttempt, "run", run_then_swap):
+            yield attempts
+
+    def invoke(self, kind, root, evidence_dir):
+        if kind == "behavior":
+            return behavior.run_scenario(root, {"id": "binding", "prompt": "route"},
+                                         None, 5, evidence_dir=evidence_dir)
+        return review.run_review(review.load_suite()[0], "broken", 5, evidence_dir=evidence_dir)[0]
+
+    def test_callers_consume_sealed_bytes_after_live_output_swap_for_every_process_outcome(self):
+        raw = b' {"verdict":"not_ready", "playbook":"retained"}\n'
+        for kind in ("behavior", "review"):
+            for ending in ("succeeded", "nonzero", "timed_out"):
+                with self.subTest(kind=kind, ending=ending), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    run = evidence.create_run(root / "evidence", "binding", {})
+                    def swap(attempt):
+                        attempt.output.write_text('{"verdict":"ready","playbook":"unretained"}')
+                    with self.captured_cli(raw, ending, swap) as attempts:
+                        result = self.invoke(kind, root, run)
+                    self.assertEqual(json.loads(raw), result)
+                    self.assertEqual(1, len(attempts))
+                    attempt = attempts[0]
+                    self.assertEqual(raw, (attempt.path / "final-result.json").read_bytes())
+                    capture = json.loads((attempt.path / "capture.json").read_text())
+                    marker = json.loads((attempt.path / "result-status.json").read_text())
+                    self.assertEqual(evidence.digest(raw), capture["sha256"]["final-result.json"])
+                    self.assertEqual(capture["sha256"]["final-result.json"], marker["result_sha256"])
+                    canonical = json.dumps(result, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+                    self.assertEqual(evidence.digest(canonical), marker["parsed_result_sha256"])
+                    self.assertEqual(ending, json.loads((attempt.path / "process.json").read_text())["status"])
+                    self.assertEqual(int(ending != "succeeded"), len(evidence.unsuccessful_usable_processes(run)))
+
+    def test_late_live_result_cannot_become_usable_when_absent_at_capture(self):
+        for kind in ("behavior", "review"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run = evidence.create_run(root / "evidence", "binding", {})
+                def late_result(attempt):
+                    attempt.output.write_text('{"verdict":"ready"}')
+                with self.captured_cli(None, after_capture=late_result) as attempts:
+                    with self.assertRaises((behavior.BehaviorEvaluationError, review.EvaluationError)):
+                        self.invoke(kind, root, run)
+                self.assertFalse((attempts[0].path / "result-status.json").exists())
+                self.assertFalse((attempts[0].path / "final-result.json").exists())
+
+    def test_retained_tamper_is_rejected_even_if_capture_manifest_is_also_rewritten(self):
+        for kind in ("behavior", "review"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run = evidence.create_run(root / "evidence", "binding", {})
+                def tamper(attempt):
+                    replacement = b'{"verdict":"ready"}'
+                    (attempt.path / "final-result.json").write_bytes(replacement)
+                    capture = json.loads((attempt.path / "capture.json").read_text())
+                    capture["sha256"]["final-result.json"] = evidence.digest(replacement)
+                    evidence.write_json(attempt.path / "capture.json", capture)
+                with self.captured_cli(b'{"verdict":"not_ready"}', after_capture=tamper) as attempts:
+                    with self.assertRaises((behavior.BehaviorEvaluationError, review.EvaluationError)):
+                        self.invoke(kind, root, run)
+                self.assertFalse((attempts[0].path / "result-status.json").exists())
+
+    def test_retained_validation_uses_the_same_read_bytes_and_mark_rejects_other_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = evidence.create_run(root / "evidence", "binding", {})
+            with self.captured_cli(b'{"accepted":true}') as attempts:
+                self.invoke("behavior", root, run)
+            attempt = attempts[0]
+            (attempt.path / "result-status.json").unlink()
+            # bool/int compare equal in Python; canonical JSON must still differ.
+            with self.assertRaises(ValueError):
+                attempt.mark_usable({"accepted": 1})
+            self.assertFalse((attempt.path / "result-status.json").exists())
+            original_read = evidence.read_regular_bytes
+            reads = []
+            def replace_after_read(path):
+                data = original_read(path)
+                reads.append(path)
+                Path(path).write_bytes(b'{"accepted":false}')
+                return data
+            with mock.patch.object(evidence, "read_regular_bytes", side_effect=replace_after_read):
+                captured = attempt.read_result()
+            self.assertEqual(b'{"accepted":true}', captured)
+            self.assertEqual([attempt.path / "final-result.json"], reads)
+            with self.assertRaises(ValueError):
+                attempt.mark_usable(json.loads(captured))
+            self.assertFalse((attempt.path / "result-status.json").exists())
+
+    def test_regular_file_read_pins_open_descriptor_and_rejects_links_and_special_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "result.json"
+            target = root / "unrelated.json"
+            source.write_bytes(b'{"retained":true}')
+            target.write_bytes(b'{"unrelated":true}')
+            original_open = evidence.os.open
+            def swap_after_open(path, flags):
+                descriptor = original_open(path, flags)
+                Path(path).unlink()
+                Path(path).symlink_to(target)
+                return descriptor
+            with mock.patch.object(evidence.os, "open", side_effect=swap_after_open):
+                self.assertEqual(b'{"retained":true}', evidence.read_regular_bytes(source))
+            with self.assertRaises(OSError):
+                evidence.read_regular_bytes(source)
+            fifo = root / "fifo"
+            os.mkfifo(fifo)
+            for path in (fifo, root):
+                with self.subTest(path=path.name), self.assertRaises(ValueError):
+                    evidence.read_regular_bytes(path)
+
+    def test_missing_live_path_after_capture_does_not_discard_retained_result(self):
+        for kind in ("behavior", "review"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run = evidence.create_run(root / "evidence", "binding", {})
+                with self.captured_cli(b'{"retained":true}', after_capture=lambda attempt: attempt.output.unlink()):
+                    self.assertEqual({"retained": True}, self.invoke(kind, root, run))
+
+    def test_retained_size_and_json_object_checks_cannot_be_bypassed_by_live_replacement(self):
+        for kind, raw in (("behavior", b'[]'), ("review", b'[]'),
+                          ("behavior", b'not json'), ("review", b'not json'),
+                          ("review", b'{"padding":"' + b'x' * 100_000 + b'"}')):
+            with self.subTest(kind=kind, size=len(raw)), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run = evidence.create_run(root / "evidence", "binding", {})
+                def replace(attempt):
+                    attempt.output.write_text('{}')
+                with self.captured_cli(raw, after_capture=replace) as attempts:
+                    with self.assertRaises((behavior.BehaviorEvaluationError, review.EvaluationError)):
+                        self.invoke(kind, root, run)
+                self.assertFalse((attempts[0].path / "result-status.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

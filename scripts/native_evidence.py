@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import selectors
+import stat
 import platform
 import re
 import subprocess
@@ -22,6 +23,18 @@ from process_control import stop_process_group, termination_guard
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def read_regular_bytes(path):
+    """Pin the opened file before checking it; never follow a final-path link."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("result is not a regular file")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            return stream.read()
+    finally:
+        os.close(descriptor)
 
 
 def write_json(path, value):
@@ -68,6 +81,9 @@ class NativeAttempt:
         label = re.sub(r"[^a-zA-Z0-9_.-]", "-", label)
         self.path = Path(tempfile.mkdtemp(prefix=label + "-", dir=root))
         self.output = output
+        self._retention_attempted = False
+        self._retained_sha256 = None
+        self._sealed_result_sha256 = None
         prompt_bytes = prompt.encode()
         schema_bytes = schema.read_bytes()
         (self.path / "prompt.txt").write_bytes(prompt_bytes)
@@ -173,10 +189,11 @@ class NativeAttempt:
                 streams_closed = stream_state["stdout_closed"] and stream_state["stderr_closed"]
                 stdout_file.flush()
                 self.retain_result()
-                names = ("stdout.jsonl", "final-result.json")
+                hashes = {"stdout.jsonl": digest((self.path / "stdout.jsonl").read_bytes())}
+                if self._retained_sha256 is not None:
+                    hashes["final-result.json"] = self._retained_sha256
                 write_json(self.path / "capture.json", {
-                    "sha256": {name: digest((self.path / name).read_bytes())
-                               for name in names if (self.path / name).is_file()},
+                    "sha256": hashes,
                     "raw_capture_completeness": "complete" if (status == "succeeded" and streams_closed
                         and not cleanup_required and not stream_state["error"]) else "unverified",
                     "streams_closed": streams_closed,
@@ -189,20 +206,51 @@ class NativeAttempt:
                     "stderr_hash_complete": stream_state["stderr_closed"] and not stream_state["error"],
                     "stderr_retained": False,
                 })
+                self._sealed_result_sha256 = self._retained_sha256
         return (process.returncode, (self.path / "stdout.jsonl").read_text(),
                 "native diagnostics omitted", timed_out)
 
     def retain_result(self):
-        # Do not follow a model-created symlink into unrelated local files.
-        if self.output.is_file() and not self.output.is_symlink():
-            data = self.output.read_bytes()
-            target = self.path / "final-result.json"
-            if not target.exists():
-                target.write_bytes(data)
-                target.chmod(0o600)
+        # One snapshot, including absence. Later process output cannot fill in a
+        # missing result or overwrite an earlier one after capture was sealed.
+        if self._retention_attempted:
+            return
+        self._retention_attempted = True
+        try:
+            data = read_regular_bytes(self.output)
+        except (OSError, ValueError):
+            return
+        target = self.path / "final-result.json"
+        with target.open("xb") as stream:
+            stream.write(data)
+        target.chmod(0o600)
+        self._retained_sha256 = digest(data)
 
-    def mark_usable(self):
-        write_json(self.path / "result-status.json", {"usable": True})
+    def read_result(self):
+        """Return the exact retained bytes verified against this run's seal.
+
+        The seal is anchored in memory, not reread from a mutable manifest. Hash
+        and caller parsing use this same byte snapshot, never a subsequent read
+        of either the live output or the retained pathname.
+        """
+        if self._sealed_result_sha256 is None:
+            raise ValueError("no structured result was retained at capture")
+        data = read_regular_bytes(self.path / "final-result.json")
+        if digest(data) != self._sealed_result_sha256:
+            raise ValueError("retained structured result does not match capture")
+        return data
+
+    def mark_usable(self, result):
+        data = self.read_result()
+        canonical = lambda value: json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        parsed = canonical(result)
+        if parsed != canonical(json.loads(data)):
+            raise ValueError("parsed structured result does not match capture")
+        write_json(self.path / "result-status.json", {
+            "usable": True, "result_sha256": digest(data),
+            "parsed_result_sha256": digest(parsed),
+        })
 
 
 def unsuccessful_usable_processes(root):

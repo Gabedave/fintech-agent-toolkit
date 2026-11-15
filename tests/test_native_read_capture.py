@@ -92,6 +92,52 @@ class NativeReadCaptureTests(unittest.TestCase):
         history = json.loads(Path(plan['resources']['history']).read_text())
         self.assertEqual({'history': self.variant['facts']['harness_history']}, history)
 
+    def test_approved_attachment_task_is_prompted_and_bound(self):
+        from foundation.conformance.acceptance_versions import amended_cases, task_amended_cases
+        from foundation.conformance.native_capture import action_state_score
+        cases = task_amended_cases(amended_cases(load_cases()['cases']))
+        self.case = next(case for case in cases if case['id'] == '06-review-evidence')
+        for variant in self.case['variants']:
+            if 'task' not in variant:
+                continue
+            with self.subTest(variant=variant['id']):
+                self.variant = variant
+                self.prepared = prepare_read_only(self.root / variant['id'], self.case,
+                    variant, self.profile, self.installed)
+                plan = json.loads(self.prepared.read_bytes())
+                prompt = Path(plan['prompt_path']).read_text()
+                self.assertIn('Original task:\n' + variant['task'] + '\nOriginal neutral facts:', prompt)
+                self.assertEqual(sha(variant['task'].encode()), plan['task_sha256'])
+                result = action_state_score(self.case, variant, self.capture())
+                self.assertNotIn('native observation differs from original case/task/facts binding', result['errors'])
+                self.assertFalse(result['model_compliance'])
+
+    def test_old_task_binding_cannot_qualify_amended_attachment(self):
+        from foundation.conformance.acceptance_versions import amended_cases, task_amended_cases
+        from foundation.conformance.native_capture import action_state_score
+        cases = task_amended_cases(amended_cases(load_cases()['cases']))
+        self.case = next(case for case in cases if case['id'] == '06-review-evidence')
+        self.variant = next(v for v in self.case['variants'] if v['id'] == 'compliant-verified-reuse')
+        self.prepared = prepare_read_only(self.root / 'old-task', self.case, self.variant,
+                                          self.profile, self.installed)
+        plan = json.loads(self.prepared.read_bytes())
+        plan['task_sha256'] = sha(self.case['task'].encode())
+        self.prepared.write_text(json.dumps(plan))
+        result = action_state_score(self.case, self.variant, self.capture())
+        self.assertIn('native observation differs from original case/task/facts binding', result['errors'])
+        self.assertEqual('fail', result['status'])
+
+    def test_unapproved_attachment_task_is_rejected_before_preparation(self):
+        from foundation.conformance.acceptance_versions import amended_cases, task_amended_cases
+        cases = task_amended_cases(amended_cases(load_cases()['cases']))
+        case = next(case for case in cases if case['id'] == '06-review-evidence')
+        variant = copy.deepcopy(next(v for v in case['variants'] if v['id'] == 'compliant-verified-reuse'))
+        variant['task'] = 'Unapproved task override.'
+        output = self.root / 'unapproved'
+        with self.assertRaises(ValueError):
+            prepare_read_only(output, case, variant, self.profile, self.installed)
+        self.assertFalse(output.exists())
+
     def test_actual_literal_reads_retain_complete_reports_without_granting_semantics(self):
         observation = self.capture()
         result = validate_capture(observation)

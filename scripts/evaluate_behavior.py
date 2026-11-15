@@ -114,10 +114,10 @@ def run_command(command: list[str], input_text: str, timeout_seconds: float, *, 
     return process.returncode, stdout, stderr
 
 
-def read_structured_result(output: Path, scenario_id: str) -> dict:
+def read_structured_result(output: Path, scenario_id: str, *, capture=None) -> dict:
     try:
-        result = json.loads(output.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        result = json.loads(capture.read_result() if capture else output.read_text())
+    except (OSError, ValueError) as error:
         raise BehaviorEvaluationError(
             f"{scenario_id}: cannot read structured result: {error}"
         ) from error
@@ -125,6 +125,11 @@ def read_structured_result(output: Path, scenario_id: str) -> dict:
         raise BehaviorEvaluationError(
             f"{scenario_id}: structured result must be a JSON object"
         )
+    if capture:
+        try:
+            capture.mark_usable(result)
+        except (OSError, ValueError) as error:
+            raise BehaviorEvaluationError(f"{scenario_id}: structured result binding failed: {error}") from error
     return result
 
 
@@ -161,9 +166,7 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
             )
         except BehaviorTimeout as error:
             try:
-                result = read_structured_result(output, scenario["id"])
-                if capture:
-                    capture.mark_usable()
+                result = read_structured_result(output, scenario["id"], capture=capture)
                 return result
             except BehaviorEvaluationError as result_error:
                 raise BehaviorEvaluationError(
@@ -171,7 +174,7 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
                     f"{timeout_seconds}s; result is incomplete; {result_error}"
                 ) from error
         try:
-            result = read_structured_result(output, scenario["id"])
+            result = read_structured_result(output, scenario["id"], capture=capture)
         except BehaviorEvaluationError as result_error:
             if returncode != 0:
                 raise BehaviorEvaluationError(
@@ -179,8 +182,6 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
                     f"{stderr.strip()}; {result_error}"
                 ) from result_error
             raise
-        if capture:
-            capture.mark_usable()
         # A complete structured decision is usable even if the CLI reports a
         # later operational failure. Score it exactly once and never replace it.
         return result
