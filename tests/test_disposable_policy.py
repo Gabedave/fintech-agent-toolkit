@@ -79,6 +79,71 @@ class DisposablePolicyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare_policy(Path(temp) / 'target', source)
 
+    def test_nested_rules_directory_symlinks_cannot_drop_caller_restrictions(self):
+        for relative in ('team', 'team/project'):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                external = root / 'external'; external.mkdir()
+                (external / 'deny.rules').write_text('prefix_rule(pattern=["git", "push"], decision="forbidden")\n')
+                source, target = root / 'source', root / 'target'
+                link = source / 'rules' / relative; link.parent.mkdir(parents=True)
+                link.symlink_to(external, target_is_directory=True)
+                with self.assertRaises(ValueError):
+                    prepare_policy(target, source)
+
+    def test_verification_rejects_injected_nested_rules_directory_symlinks(self):
+        for relative in ('team', 'team/project'):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                target = root / 'target'
+                receipt = prepare_policy(target, root / 'source')
+                external = root / 'external'; external.mkdir()
+                (external / 'deny.rules').write_text('prefix_rule(pattern=["git", "push"], decision="forbidden")\n')
+                link = target / 'rules' / relative; link.parent.mkdir(parents=True)
+                link.symlink_to(external, target_is_directory=True)
+                with self.assertRaises(ValueError):
+                    verify_policy(target, receipt)
+
+    def test_regular_nested_rules_and_both_instruction_files_survive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target = Path(temp) / 'source', Path(temp) / 'target'
+            expected = {'rules/z.rules': b'z\n', 'rules/team/project/deny.rules': b'deny\n',
+                        'AGENTS.md': b'ordinary\n', 'AGENTS.override.md': b'override\n'}
+            for relative, raw in expected.items():
+                path = source / relative; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(raw)
+            receipt = prepare_policy(target, source)
+            self.assertEqual(['rules/team/project/deny.rules', 'rules/z.rules', 'AGENTS.md', 'AGENTS.override.md'], list(receipt['policy_files']))
+            self.assertEqual(expected, {relative: (target / relative).read_bytes() for relative in receipt['policy_files']})
+            verify_policy(target, receipt)
+            (target / 'rules/team/project/deny.rules').write_text('allow\n')
+            with self.assertRaisesRegex(ValueError, 'rules or instructions changed'):
+                verify_policy(target, receipt)
+
+    def test_inaccessible_nested_rules_enumeration_fails_closed(self):
+        for phase in ('prepare', 'verify'):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temp:
+                source, target = Path(temp) / 'source', Path(temp) / 'target'
+                (source / 'rules/team').mkdir(parents=True)
+                (source / 'rules/team/deny.rules').write_text('deny\n')
+                receipt = prepare_policy(target, source) if phase == 'verify' else None
+                inaccessible = (target if phase == 'verify' else source) / 'rules/team'
+                original = os.scandir
+                def scandir(path):
+                    if Path(path) == inaccessible:
+                        raise PermissionError('synthetic inaccessible policy directory')
+                    return original(path)
+                with patch('os.scandir', side_effect=scandir), self.assertRaises((ValueError, PermissionError)):
+                    if phase == 'prepare': prepare_policy(target, source)
+                    else: verify_policy(target, receipt)
+
+    def test_rule_file_and_instruction_symlinks_still_fail_closed(self):
+        for relative in ('rules/deny.rules', 'AGENTS.md', 'AGENTS.override.md'):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); source = root / 'source'; source.mkdir()
+                external = root / 'external'; external.write_text('deny\n')
+                link = source / relative; link.parent.mkdir(parents=True, exist_ok=True); link.symlink_to(external)
+                with self.assertRaises(ValueError): prepare_policy(root / 'target', source)
+
 
 if __name__ == '__main__':
     unittest.main()

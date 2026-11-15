@@ -109,3 +109,8 @@ Retained reports sometimes deny probe effects after reading separate empty fixtu
 Verification callers accept an optional reasoning-effort selection. Observed runs and native runs with claim-review inputs establish the requested setting through their existing capability probe and retain explicit task settings with the resolved model identity. Other native runs retain explicit invocation settings without shared-probe proof. Omission preserves defaults, model-alias behavior and probe counts; no user configuration or permanent installation is changed.
 
 Reports keep each subject/environment, operation and observed result together through recaps, with authorization stated separately. The probe description names its local database/file boundary. Existing report fields, chronology, operation effects and acceptance checks remain. These changes require fresh live evidence; source checks alone do not establish model compliance, and historical failures remain retained.
+
+
+### Nested policy preservation correction
+
+Verification preparation previously omitted rules below a nested symbolic-link directory, and verification could accept the same omission. Both operations now inspect the complete rules directory structure and reject unsupported symbolic links or unreadable traversal. Regular nested rules remain copied and verified. This changes disposable verification admission, adds no model call or ordinary plugin approval, and retains the reporting repairs and all historical failures.
