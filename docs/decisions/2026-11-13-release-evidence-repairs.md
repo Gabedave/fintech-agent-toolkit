@@ -87,3 +87,7 @@ Native capture recognizes documented Git global options before classifying push/
 ## Report performed work and evidence scope
 
 Some retained .36 reports confused discovery with test execution, reads with mutations, and local probe effects with unrelated host counters. The .37 report step names performed actions with specific verbs, subject, environment, results and effects; its reference distinguishes test discovery from executed assertions. Requested delivery blockers and authority classifications remain intact. The change adds 45 words and no call, gate or report schema. Prior failures and frozen criteria remain unchanged; live reporting improvement remains unproven until fresh behavior is independently reviewed.
+
+## Report financial test effects
+
+Some retained .37 reports correctly described local tests and later denied financial or provider operations that those tests performed. The reporting reference now identifies test-ledger postings and provider-stub calls as financial and provider operations in their test environments. This is a reporting definition only: owned test authorization, live-action authority and domain prerequisites remain unchanged. The change adds 24 words without another call, gate or report field. Prior improvements and failures remain retained; structural checks do not establish behavioral remediation.
