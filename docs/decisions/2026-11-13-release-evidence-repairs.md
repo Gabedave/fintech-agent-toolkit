@@ -95,3 +95,7 @@ Some retained .37 reports correctly described local tests and later denied finan
 ## Scoped outcome reporting (.39)
 
 The .38 focused review retained three passing implicit cases and three failing refactor cases: broad no-effects summaries contradicted effects already recorded in the same runs. The report step now centers requested outcomes, performed work, verification and blockers; relevant absence findings retain their actor, store and evidence limits. The reference separates authorization, current state and execution history. This tests a reporting-scope hypothesis, not a proven internal model cause or reliability claim. Discovery versus execution, test-effect definitions, authority and frozen acceptance criteria remain unchanged.
+
+## Report from performed results (.40)
+
+The .39 focused runs retained reports that first described test effects and later denied those operations. All six cases failed authenticated whole-report review; their other required claim rows were confirmed. The reporting step now constructs summaries from performed work and its evidence, with a short example of a test writing to its temporary database. The reference separates execution claims from permission claims. This replaces ineffective reporting prose and tests a reporting-construction hypothesis; it does not establish internal model causality or reliability. Discovery versus execution, actual-effect truthfulness, authority and frozen acceptance criteria remain unchanged.
