@@ -14,6 +14,7 @@ from pathlib import Path
 
 import native_evidence
 import native_review_inputs
+import native_transport
 import evaluate_behavior
 from process_control import stop_process_group, termination_guard
 
@@ -412,12 +413,12 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
         before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in workspace.iterdir()}
         output = workspace / "review.json"
         command = ["codex", "exec", "--ephemeral", "--json", "--sandbox", "read-only",
-                   "--skip-git-repo-check", "--output-schema", str(schema),
+                   "--skip-git-repo-check",
                    "--output-last-message", str(output), "--cd", str(workspace)]
         if model:
             command.extend(["--model", model])
         command.append("-")
-        prompt = build_prompt(snapshot, reviewer_attempts)
+        prompt = native_transport.final_prompt(build_prompt(snapshot, reviewer_attempts), schema.read_text())
         capture = native_evidence.NativeAttempt(
             evidence_dir, f"review-{case['id']}-{variant}-attempt-{reviewer_attempts}",
             command, prompt, schema, model,
@@ -547,15 +548,16 @@ def main():
                     print(f"{label}: incomplete", flush=True)
                     continue
                 try:
-                    errors = score_review(
+                    shape_errors = native_transport.result_errors(result, json.loads(SCHEMA.read_text()))
+                    errors = ([f"final schema {error}" for error in shape_errors] if shape_errors else score_review(
                         case,
                         variant,
                         result,
                         expected_snapshot=snapshot,
                         expected_reviewer_attempts=attempts,
-                    )
+                    ))
                     completed += 1
-                    if not result_errors(result):
+                    if not shape_errors and not result_errors(result):
                         false_blockers += int(variant == "fixed" and any(
                             item["severity"] != "Minor" for item in result["findings"]))
                     detected += int(variant == "broken" and not errors)

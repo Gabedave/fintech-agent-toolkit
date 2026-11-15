@@ -1,6 +1,6 @@
 ---
 name: {{ROUTER}}
-description: Route any task in a {{AUDIENCE}} product repository. For decision-only tasks, use prose for loading updates; reserve structured fields for the decision. A small mechanical edit uses no playbook; other work selects supporting skills automatically. Exclude unrelated general questions.
+description: Route any task in a {{AUDIENCE}} product repository through the proportionate default engineering workflow, including choosing the no-playbook path for a small mechanical edit. Use without waiting for the user to name supporting skills; do not use for unrelated general questions.
 ---
 
 # {{ROUTER_TITLE}}

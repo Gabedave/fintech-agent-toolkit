@@ -415,12 +415,12 @@ class NativeReviewInputsTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=30)
             observed = json.dumps({'command': command, 'exit': result.returncode,
                                    'stdout': result.stdout, 'stderr': result.stderr})
-            # The scorer must reject this intentionally wrong route after the
-            # actual capture branch successfully retains one usable result.
+            # The final schema must reject this intentionally incomplete object
+            # after actual capture successfully retains one usable result.
             self.assertIn('1/1 usable results; 0/1 operational replacements used', result.stdout, observed)
             self.assertEqual(1, result.returncode, observed)
             self.assertNotIn('Traceback', result.stderr, observed)
-            self.assertIn('routing selection', result.stderr, observed)
+            self.assertIn('final schema', result.stderr, observed)
             attempts = list((directory / 'child-evidence').glob('behavior-*/behavior-*/result-status.json'))
             self.assertEqual(1, len(attempts), observed)
             status = json.loads((attempts[0].parent / 'review-inputs/capture-status.json').read_text())

@@ -140,6 +140,8 @@ class BehaviorOperationalReplacement(unittest.TestCase):
             evaluate_behavior, "validate_result", return_value=[]
         ), mock.patch.object(
             evaluate_behavior, "routing_advisories", return_value=[]
+        ), mock.patch.object(
+            evaluate_behavior.native_transport, "result_errors", return_value=[]
         ), contextlib.redirect_stdout(output):
             result = evaluate_behavior.evaluate_scenarios(
                 Path("/synthetic"), scenarios, None, 60

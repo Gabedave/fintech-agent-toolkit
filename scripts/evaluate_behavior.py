@@ -10,6 +10,7 @@ from pathlib import Path
 
 import native_evidence
 import native_review_inputs
+import native_transport
 
 from process_control import stop_process_group, termination_guard
 
@@ -147,8 +148,6 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
             "--json",
             "--sandbox",
             "read-only",
-            "--output-schema",
-            str(SCHEMA),
             "--output-last-message",
             str(output),
             "--cd",
@@ -157,7 +156,7 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
         if model:
             command.extend(["--model", model])
         command.append("-")
-        prompt = build_prompt(scenario["prompt"])
+        prompt = native_transport.final_prompt(build_prompt(scenario["prompt"]), SCHEMA.read_text())
         capture = native_evidence.NativeAttempt(
             evidence_dir, "behavior-" + scenario["id"], command, prompt, SCHEMA, model,
             {"scenario": scenario, "fixture": str(repo)}, output,
@@ -247,8 +246,11 @@ def evaluate_scenarios(
             print(f"{scenario['id']}: no usable result after {attempts} attempt(s)")
             continue
         usable_results += 1
-        failures.extend(validate_result(scenario, result))
-        advisories.extend(routing_advisories(scenario, result))
+        shape_errors = native_transport.result_errors(result, load(SCHEMA))
+        failures.extend(f"{scenario['id']}: final schema {error}" for error in shape_errors)
+        if not shape_errors:
+            failures.extend(validate_result(scenario, result))
+            advisories.extend(routing_advisories(scenario, result))
         suffix = " (operational replacement used)" if replacement_used else ""
         print(f"{scenario['id']}: evaluated{suffix}")
     return failures, advisories, replacements, usable_results
