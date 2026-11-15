@@ -1,6 +1,6 @@
 ---
 name: {{ROUTER}}
-description: Route any task in a {{AUDIENCE}} product repository through the proportionate default engineering workflow, including choosing the no-playbook path for a small mechanical edit. Use without waiting for the user to name supporting skills; do not use for unrelated general questions. For decision-only tasks, read policy before returning the decision; keep progress out of result fields.
+description: Route {{AUDIENCE}} repository work. For decision-only tasks, read policy first; keep loading progress out of result fields. Small mechanical edits use no playbook; other engineering work selects supporting skills automatically. Exclude unrelated general questions.
 ---
 
 # {{ROUTER_TITLE}}
