@@ -1,6 +1,6 @@
 ---
 name: {{ROUTER}}
-description: Route {{AUDIENCE}} repository work. For decision-only tasks, read policy first; keep loading progress out of result fields. Small mechanical edits use no playbook; other engineering work selects supporting skills automatically. Exclude unrelated general questions.
+description: Route any task in a {{AUDIENCE}} product repository. For decision-only tasks, read policy first; keep loading progress out of result fields. A small mechanical edit uses no playbook; other work selects supporting skills automatically. Exclude unrelated general questions.
 ---
 
 # {{ROUTER_TITLE}}
