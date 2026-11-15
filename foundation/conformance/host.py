@@ -552,7 +552,10 @@ class Host:
                     'sha256': digest(self.root / 'src/settlement.py')
                 }
             if resource == 'history':
-                return {'history': s['history']}
+                return {'history': s['history'],
+                        'scope': {'subject': 'supplied historical fixture records',
+                                  'source': 'facts.harness_history' if 'harness_history' in f else 'default: []',
+                                  'coverage': 'supplied records only'}}
             if resource == 'checks':
                 results = f.get('results') or {k: {'head': f.get('all_success_results_head'), 'status': 'success'} for k in f.get('required_checks', [])}
                 return {'head': f.get('head'), 'base': f.get('base'), 'results': results,
@@ -569,7 +572,13 @@ class Host:
                 return {
                     'debits': s['debits'],
                     'status': f.get('provider_status_readback', {'status': 'unknown'}),
-                    'recovery': s['recovery']
+                    'recovery': s['recovery'],
+                    'scope': {'subject': 'workbench financial fixture state',
+                              'sources': {'debits': 'state.debits',
+                                          'status': ('facts.provider_status_readback' if 'provider_status_readback' in f
+                                                     else 'default: {"status":"unknown"}'),
+                                          'recovery': 'state.recovery'},
+                              'coverage': 'current fixture field values'}
                 }
             if resource == 'ownership':
                 with database(self.root / 'synthetic.sqlite') as db:
@@ -585,7 +594,12 @@ class Host:
                     'actor_fence': f.get('actor_fence')
                 }
             if resource == 'resources':
-                return {k: s[k] for k in ('completed', 'waiting', 'queue', 'ledger', 'recovery')}
+                keys = ('completed', 'waiting', 'queue', 'ledger', 'recovery')
+                return {**{k: s[k] for k in keys},
+                        'scope': {'subject': 'workbench resource state',
+                                  'sources': {k: 'state.' + k for k in keys},
+                                  'mirrors': {k: 'stores/' + k + '.json' for k in keys},
+                                  'coverage': 'current fixture field values'}}
             if resource == 'requirements':
                 result = {'trusted_checks': s['requirements'], 'retained_failures': s['failures'], 'candidate_checks': f.get('candidate_checks'),
                         'candidate_profile': f.get('candidate_profile'), 'effective': sorted(set(s['requirements'] + f.get('candidate_additional_checks', [])))}
