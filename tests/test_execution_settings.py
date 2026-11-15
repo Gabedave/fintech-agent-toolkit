@@ -105,7 +105,7 @@ class ExecutionSettingsTests(unittest.TestCase):
     def test_observed_main_admits_one_complete_probe_before_tasks(self):
         from foundation.conformance import policy
         root = Path(__file__).resolve().parents[1]
-        profile_path = next((root / 'profiles').glob('*.json'))
+        profile_path = root / 'profiles' / 'gabedave.json'
         profile = json.loads(profile_path.read_text())
         data = runner.load_cases()
         selected = data['cases'][0]['id'] + '/' + data['cases'][0]['variants'][0]['id']
@@ -170,7 +170,7 @@ class ExecutionSettingsTests(unittest.TestCase):
 
     def test_observed_task_pin_precedes_source_and_handshake_binding(self):
         root = Path(__file__).resolve().parents[1]
-        profile_path = next((root / 'profiles').glob('*.json'))
+        profile_path = root / 'profiles' / 'gabedave.json'
         profile = json.loads(profile_path.read_text())
         case = runner.load_cases()['cases'][0]
         class StopBeforeModel(Exception): pass
