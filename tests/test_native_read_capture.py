@@ -90,7 +90,12 @@ class NativeReadCaptureTests(unittest.TestCase):
         for field in ('expected_disposition', 'required_observed_events', 'forbidden_observed_events', 'required_order'):
             self.assertNotIn(field, prompt)
         history = json.loads(Path(plan['resources']['history']).read_text())
-        self.assertEqual({'history': self.variant['facts']['harness_history']}, history)
+        self.assertEqual({
+            'history': self.variant['facts']['harness_history'],
+            'scope': {'subject': 'supplied historical fixture records',
+                      'source': 'facts.harness_history',
+                      'coverage': 'supplied records only'},
+        }, history)
 
     def test_approved_attachment_task_is_prompted_and_bound(self):
         from foundation.conformance.acceptance_versions import amended_cases, task_amended_cases
