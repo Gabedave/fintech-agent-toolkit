@@ -83,3 +83,7 @@ The unavailable-evidence verifier accepts either its original semantic probe or 
 The synthetic financial host rejects missing or malformed authoritative identity before validation or posting. Its existing subject, owner and fence fields must be present and correctly typed; absent fields cannot match each other and create a null-subject posting. The same predicate bounds possible effects. No extra identity field, amount range or identifier format is introduced.
 
 Native capture recognizes documented Git global options before classifying push/merge attempts and retains item-updated report and request phases. This improves negative evidence and report completeness; it does not admit unsupported reads or expand the separately pinned positive-read parser. All historical raw records and outcomes remain unchanged.
+
+## Report performed work and evidence scope
+
+Some retained .36 reports confused discovery with test execution, reads with mutations, and local probe effects with unrelated host counters. The .37 report step names performed actions with specific verbs, subject, environment, results and effects; its reference distinguishes test discovery from executed assertions. Requested delivery blockers and authority classifications remain intact. The change adds 45 words and no call, gate or report schema. Prior failures and frozen criteria remain unchanged; live reporting improvement remains unproven until fresh behavior is independently reviewed.
