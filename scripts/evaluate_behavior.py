@@ -17,6 +17,7 @@ from process_control import stop_process_group, termination_guard
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from foundation.conformance.runner import REASONING_EFFORTS, reasoning_effort_args
 MANIFEST = ROOT / "plugins" / "fintech-engineering" / ".codex-plugin" / "plugin.json"
 SCENARIOS = ROOT / "tests" / "behavior-scenarios.json"
 SCHEMA = ROOT / "tests" / "behavior-result.schema.json"
@@ -138,7 +139,7 @@ def read_structured_result(output: Path, scenario_id: str, *, capture=None) -> d
 
 
 def run_scenario(repo: Path, scenario: dict, model: str | None,
-                 timeout_seconds: int, *, evidence_dir=None, review_inputs=None) -> dict:
+                 timeout_seconds: int, *, evidence_dir=None, review_inputs=None, reasoning_effort=None) -> dict:
     with tempfile.TemporaryDirectory(prefix="fintech-behavior-") as temp_dir:
         output = Path(temp_dir) / "result.json"
         command = [
@@ -153,6 +154,7 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
             "--cd",
             str(repo),
         ]
+        command.extend(reasoning_effort_args(reasoning_effort))
         if model:
             command.extend(["--model", model])
         command.append("-")
@@ -197,19 +199,21 @@ def run_scenario_with_replacement(
     timeout_seconds: int,
     *,
     replacement_available: bool,
-    evidence_dir=None, review_inputs=None,
+    evidence_dir=None, review_inputs=None, reasoning_effort=None,
 ) -> tuple[dict | None, int, bool, BehaviorEvaluationError | None]:
     """Return one usable result, allowing one fresh operational replacement."""
     try:
         return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
-                            **({"review_inputs": review_inputs} if review_inputs is not None else {})), 1, False, None
+                            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})), 1, False, None
     except BehaviorEvaluationError as first_error:
         if not replacement_available:
             return None, 1, False, first_error
         first_error_text = str(first_error)
     try:
         return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
-                            **({"review_inputs": review_inputs} if review_inputs is not None else {})), 2, True, None
+                            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})), 2, True, None
     except BehaviorEvaluationError as replacement_error:
         error = BehaviorEvaluationError(
             f"initial attempt failed: {first_error_text}; "
@@ -223,7 +227,7 @@ def evaluate_scenarios(
     scenarios: list[dict],
     model: str | None,
     timeout_seconds: int,
-    *, evidence_dir=None, review_inputs=None,
+    *, evidence_dir=None, review_inputs=None, reasoning_effort=None,
 ) -> tuple[list[str], list[str], int, int]:
     failures: list[str] = []
     advisories: list[str] = []
@@ -238,6 +242,7 @@ def evaluate_scenarios(
             replacement_available=replacements < MAX_OPERATIONAL_REPLACEMENTS,
             evidence_dir=evidence_dir,
             **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {}),
         )
         if replacement_used:
             replacements += 1
@@ -816,6 +821,7 @@ def main() -> None:
     parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--scenario", action="append", help="Run only this scenario ID.")
     parser.add_argument("--model", help="Optional Codex model override.")
+    parser.add_argument("--reasoning-effort", choices=REASONING_EFFORTS)
     parser.add_argument("--review-input-context", type=Path)
     parser.add_argument("--review-input-context-sha256")
     parser.add_argument("--timeout-seconds", type=int, default=120)
@@ -873,7 +879,8 @@ def main() -> None:
         os.environ, 'legacy-decisions', candidate_root=ROOT) if args.review_input_context else None
     failures, advisories, replacements, usable_results = evaluate_scenarios(
         repo, scenarios, args.model, args.timeout_seconds, evidence_dir=evidence_dir,
-        **({"review_inputs": review_inputs} if review_inputs is not None else {})
+        **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+        **({"reasoning_effort": args.reasoning_effort} if args.reasoning_effort is not None else {})
     )
     for process_note in native_evidence.unsuccessful_usable_processes(evidence_dir):
         print(f"Native process: {process_note}; capture completeness unverified")

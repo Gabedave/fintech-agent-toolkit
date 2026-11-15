@@ -20,6 +20,7 @@ from process_control import stop_process_group, termination_guard
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from foundation.conformance.runner import REASONING_EFFORTS, reasoning_effort_args
 from foundation.conformance.policy import safe_env
 FIXTURES = ROOT / "tests" / "review-quality"
 SUITE = FIXTURES / "cases.json"
@@ -402,7 +403,7 @@ Return the requested structured review only; no external review submission is au
 """
 
 
-def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evidence_dir=None, review_inputs=None):
+def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evidence_dir=None, review_inputs=None, reasoning_effort=None):
     with tempfile.TemporaryDirectory(prefix="fintech-review-") as directory:
         workspace = Path(directory)
         materialize(case, variant, workspace)
@@ -415,6 +416,7 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
         command = ["codex", "exec", "--ephemeral", "--json", "--sandbox", "read-only",
                    "--skip-git-repo-check",
                    "--output-last-message", str(output), "--cd", str(workspace)]
+        command.extend(reasoning_effort_args(reasoning_effort))
         if model:
             command.extend(["--model", model])
         command.append("-")
@@ -462,11 +464,12 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
 
 
 def run_review_with_replacement(case, variant, timeout, model=None,
-                                replacement_available=False, *, evidence_dir=None, review_inputs=None):
+                                replacement_available=False, *, evidence_dir=None, review_inputs=None, reasoning_effort=None):
     try:
         result, snapshot = run_review(
             case, variant, timeout, model, reviewer_attempts=1, evidence_dir=evidence_dir,
-            **({"review_inputs": review_inputs} if review_inputs is not None else {})
+            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})
         )
         return result, snapshot, 1, False, None
     except (EvaluationError, OSError) as first_error:
@@ -475,7 +478,8 @@ def run_review_with_replacement(case, variant, timeout, model=None,
         try:
             result, snapshot = run_review(
                 case, variant, timeout, model, reviewer_attempts=2, evidence_dir=evidence_dir,
-                **({"review_inputs": review_inputs} if review_inputs is not None else {})
+                **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})
             )
             return result, snapshot, 2, True, None
         except (EvaluationError, OSError) as replacement_error:
@@ -494,6 +498,7 @@ def main():
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--model", help="Optional explicit model override.")
+    parser.add_argument("--reasoning-effort", choices=REASONING_EFFORTS)
     parser.add_argument("--review-input-context", type=Path)
     parser.add_argument("--review-input-context-sha256")
     args = parser.parse_args()
@@ -540,6 +545,7 @@ def main():
                         replacement_available=replacements == 0,
                         evidence_dir=evidence_dir,
                         **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                        **({"reasoning_effort": args.reasoning_effort} if args.reasoning_effort is not None else {}),
                     )
                 )
                 replacements += int(replacement_used)

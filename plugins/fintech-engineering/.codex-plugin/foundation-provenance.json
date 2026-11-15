@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "09114d8eb6ac936947dda487302c78f82dcb4fd3",
+  "source_commit": "e7c79163ade4e5aa3a4d2bc3bb4ab71dd77c1b26",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.41",
+  "plugin_version": "0.2.42",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.41",
-    "commit": "09114d8eb6ac936947dda487302c78f82dcb4fd3",
-    "digest": "d88554c2f05595f83320274c52fb4807768cf92b78c4d2b0d00c25d180c9615d"
+    "version": "1.0.42",
+    "commit": "e7c79163ade4e5aa3a4d2bc3bb4ab71dd77c1b26",
+    "digest": "5f9cf440ff410ffa9126add6430002b9d40268970fbb4a8e5bb8af9bdd795ae7"
   },
   "adapter_revision": "1.0.11",
-  "profile_digest": "b57bef3eb1f57cc4565bf26803e3e34ab53e0cb85c1b803344f4933d8fdfcbc1",
+  "profile_digest": "4aaa8ba19a8f1bad4aeb886d5ae4b149e0a5554b9c918234ec784fe4de748e2f",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "089abed05203e7ac2b33d694fb6c44c30234935786eb81e60e886ab05d5ad211",
+      "sha256": "9c2b090c9134358ea77b0e644fe6e545b8ae15af7bd166f83cc9689dc1929382",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -70,7 +70,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/SKILL.md": {
-      "sha256": "464e883ed18566c692fbebb56f8552406207ad7335edfc526c8158d3202a1e99",
+      "sha256": "ef088df71245fbab7f33891bbd34683b80e3220f2ed95cf5ebdb576249b422b6",
       "mode": "0644"
     },
     "skills/fintech-mode/agents/openai.yaml": {
@@ -78,7 +78,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/references/acceptance-and-evidence.md": {
-      "sha256": "5837fc38b7ce9721ba5f27d6a3081832bcf77e1fb774a21164b3d8045122ba17",
+      "sha256": "908b4c8cb117a20236350336fa1261ac1ef9c4fe261b704bbf460ecb1200e7c8",
       "mode": "0644"
     },
     "skills/fintech-mode/references/implementation-readiness.md": {
@@ -230,5 +230,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "5164f2267afc5f511ca13f601c4e27f78cc6afcfc46251ce5b241964a8c324e4"
+  "content_digest": "4c48c6a418692fafe54b998139256e7653f8f1aaa01297480ad5ae779bef1295"
 }

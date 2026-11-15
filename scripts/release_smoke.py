@@ -16,6 +16,7 @@ from process_control import stop_process_group, termination_guard
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from foundation.conformance.runner import REASONING_EFFORTS
 from foundation.conformance.policy import prepare_policy, safe_env, verify_policy
 MANIFEST = ROOT / "plugins" / "fintech-engineering" / ".codex-plugin" / "plugin.json"
 SCENARIOS = ROOT / "tests" / "behavior-scenarios.json"
@@ -123,6 +124,7 @@ def main() -> None:
     parser.add_argument("--evidence-dir", type=Path, required=True,
                         help="Persistent evidence storage outside candidate and fixture trees.")
     parser.add_argument("--model", help="Optional Codex model override for the smoke suite.")
+    parser.add_argument("--reasoning-effort", choices=REASONING_EFFORTS)
     parser.add_argument("--claim-review-inputs", action="store_true",
                         help="Retain optional public inputs for independent release claim review.")
     parser.add_argument(
@@ -210,6 +212,7 @@ def main() -> None:
         review_context = native_review_inputs.capture_release_context(
             evidence_dir, ROOT, ROOT / "profiles/gabedave.json", codex_home, env,
             requested_model=args.model, timeout=args.timeout_seconds,
+            **({"reasoning_effort": args.reasoning_effort} if args.reasoning_effort is not None else {}),
         ) if args.claim_review_inputs else None
         effective_model = review_context['effective_model'] if review_context else args.model
         context_args = (["--review-input-context", review_context["path"],
@@ -225,6 +228,8 @@ def main() -> None:
             "--evidence-dir", str(evidence_dir),
         ]
         command.extend(context_args)
+        if args.reasoning_effort is not None:
+            command.extend(["--reasoning-effort", args.reasoning_effort])
         if effective_model:
             command.extend(["--model", effective_model])
         for scenario in scenarios if args.development else []:
@@ -251,6 +256,8 @@ def main() -> None:
                 "--evidence-dir", str(evidence_dir),
             ]
             quality_command.extend(context_args)
+            if args.reasoning_effort is not None:
+                quality_command.extend(["--reasoning-effort", args.reasoning_effort])
             if effective_model:
                 quality_command.extend(["--model", effective_model])
             quality_output = run(quality_command, env, "installed-candidate review-quality pilot",

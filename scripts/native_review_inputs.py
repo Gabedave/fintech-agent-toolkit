@@ -54,13 +54,13 @@ def environment_transition(before, after):
             'unretained_value_keys': sorted(set(before['unexpected_keys']) | set(after['unexpected_keys']))}
 
 
-def capture_model_probe(root, env, requested_model, timeout):
+def capture_model_probe(root, env, requested_model, timeout, *, reasoning_effort=None):
     """One non-JSON observation, then explicit model pins on scored JSON calls.
 
     Use the existing conformance collector's diagnostic privacy and completion
     rules. This observes the shared probe; it is not a per-task model header.
     """
-    from foundation.conformance.runner import stream_process, require_effective_model
+    from foundation.conformance.runner import stream_process, require_effective_model, require_effective_effort, reasoning_effort_args
     output, workspace = root / 'model-probe', root / 'model-probe-workspace'
     output.mkdir(mode=0o700)
     workspace.mkdir(mode=0o700)
@@ -69,15 +69,18 @@ def capture_model_probe(root, env, requested_model, timeout):
                '-c', 'web_search="disabled"', '-C', str(workspace)]
     if requested_model:
         command.extend(['--model', requested_model])
+    command.extend(reasoning_effort_args(reasoning_effort))
     command.append('-')
     prompt = 'Reply PROBE_READY. Do not invoke tools or access files.'
     save(output / 'request.json', {'command': command, 'prompt': prompt,
          'requested_model': requested_model, 'cwd': str(workspace),
+         **({'reasoning_effort': reasoning_effort} if reasoning_effort is not None else {}),
          'environment': environment(env), 'prepared_at_ns': time.monotonic_ns()})
     result = stream_process(command, env, workspace, output, timeout, prompt)
     result['finished_at_ns'] = time.monotonic_ns()
     save(output / 'result.json', result)
     effective = require_effective_model(result)
+    require_effective_effort(result, reasoning_effort)
     artifacts = {}
     for role, name in (('request', 'request.json'), ('result', 'result.json'),
                        ('diagnostics', 'diagnostics.json'), ('capture', 'capture.json'), ('stdout', 'stdout.jsonl')):
@@ -86,11 +89,12 @@ def capture_model_probe(root, env, requested_model, timeout):
         raw, _ = _read(path)
         artifacts[role] = {'path': path.relative_to(root).as_posix(),
                            'sha256': evidence.digest(raw), 'size_bytes': len(raw)}
-    return {'kind': 'shared-native-model-probe-v1', 'effective_model': effective, **artifacts}
+    return {'kind': 'shared-native-model-probe-v1', 'effective_model': effective, **artifacts,
+            **({'reasoning_effort': reasoning_effort} if reasoning_effort is not None else {})}
 
 
 def validate_model_probe(root, descriptor, release_environment):
-    from foundation.conformance.runner import require_effective_model
+    from foundation.conformance.runner import require_effective_model, require_effective_effort
     values = {}
     for role in ('request', 'result', 'diagnostics', 'capture', 'stdout'):
         row = descriptor[role]
@@ -101,6 +105,10 @@ def validate_model_probe(root, descriptor, release_environment):
             values[role] = json.loads(raw)
     request, result = values['request'], values['result']
     effective = require_effective_model(result)
+    effort = descriptor.get('reasoning_effort')
+    require_effective_effort(result, effort)
+    if request.get('reasoning_effort') != effort or not effort_command_matches(request['command'], effort):
+        raise ValueError('model probe effort binding is inconsistent')
     command_hash = evidence.digest(json.dumps(request['command'], separators=(',', ':')).encode())
     if (descriptor['kind'] != 'shared-native-model-probe-v1' or descriptor['effective_model'] != effective
             or result['command'] != request['command'] or '--json' in request['command']
@@ -111,6 +119,32 @@ def validate_model_probe(root, descriptor, release_environment):
             or not request['prepared_at_ns'] <= result['started_at_ns'] < result['finished_at_ns']):
         raise ValueError('model probe binding is inconsistent')
     return effective
+
+
+def effort_command_matches(command, effort):
+    from foundation.conformance.runner import reasoning_effort_args
+    expected = reasoning_effort_args(effort)
+    assignments = []
+    index = 0
+    while index < len(command):
+        token = command[index]
+        if token == '--':
+            break
+        value = None
+        option_index = index
+        if token in ('-c', '--config') and index + 1 < len(command):
+            index += 1
+            value = command[index]
+        elif token.startswith('--config='):
+            value = token[len('--config='):]
+        elif token.startswith('-c') and token != '-c':
+            value = token[2:].removeprefix('=')
+        if value is not None and value.partition('=')[0].strip().strip('\"\'') == 'model_reasoning_effort':
+            assignments.append(option_index)
+        index += 1
+    if effort is None:
+        return not assignments
+    return len(assignments) == 1 and list(command[assignments[0]:assignments[0]+2]) == expected
 
 
 def _read(name, directory_fd=None):
@@ -211,7 +245,7 @@ def _tree_digest(files):
 
 
 def prepare_release_context(evidence_dir, candidate, profile_path, home, env, catalog_bytes, *, installed_at_ns,
-                            probe_model=False, requested_model=None, timeout=120):
+                            probe_model=False, requested_model=None, timeout=120, reasoning_effort=None):
     candidate, profile_path, home = Path(candidate).resolve(), Path(profile_path).resolve(), Path(home).resolve()
     root = Path(evidence_dir) / 'review-inputs'
     root.mkdir(mode=0o700)
@@ -279,7 +313,7 @@ def prepare_release_context(evidence_dir, candidate, profile_path, home, env, ca
         dest.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         dest.write_bytes(raw); dest.chmod(0o600)
         sources.append({'role': role, 'original_path': str(original), 'path': relative, **row})
-    model_probe = capture_model_probe(root, env, requested_model, timeout) if probe_model else None
+    model_probe = capture_model_probe(root, env, requested_model, timeout, reasoning_effort=reasoning_effort) if probe_model else None
     value = {'kind': 'native-review-context-v1', 'candidate': evidence.git_identity(candidate),
              'profile': profile, 'foundation_lock': lock, 'installed_at_ns': installed_at_ns,
              'installation_time_semantics': 'catalog readback completed after successful installation and before model attempts',
@@ -295,14 +329,14 @@ def prepare_release_context(evidence_dir, candidate, profile_path, home, env, ca
             'effective_model': model_probe['effective_model'] if model_probe else None}
 
 
-def capture_release_context(evidence_dir, candidate, profile_path, home, env, *, requested_model=None, timeout=120):
+def capture_release_context(evidence_dir, candidate, profile_path, home, env, *, requested_model=None, timeout=120, reasoning_effort=None):
     result = subprocess.run(['codex', 'plugin', 'list', '--json'], env=env,
                             capture_output=True, timeout=20, check=False)
     if result.returncode:
         raise ValueError('selected plugin catalog readback unavailable')
     return prepare_release_context(evidence_dir, candidate, profile_path, home, env,
                                    result.stdout, installed_at_ns=time.monotonic_ns(),
-                                   probe_model=True, requested_model=requested_model, timeout=timeout)
+                                   probe_model=True, requested_model=requested_model, timeout=timeout, reasoning_effort=reasoning_effort)
 
 
 def _read_relative(root, relative):
@@ -391,10 +425,19 @@ class AttemptInputs:
                     'command_sha256': evidence.digest(json.dumps(list(command), separators=(',', ':')).encode())}
             else:
                 self.gaps.append('attempt model is not explicitly pinned to observed shared probe')
+        self.effort_binding = None
+        if probe and probe.get('reasoning_effort') is not None:
+            if effort_command_matches(command, probe['reasoning_effort']):
+                self.effort_binding = {'kind': 'shared-probe-explicit-argv-v1',
+                    'reasoning_effort': probe['reasoning_effort'], 'probe_result_sha256': probe['result']['sha256'],
+                    'command_sha256': evidence.digest(json.dumps(list(command), separators=(',', ':')).encode())}
+            else:
+                self.gaps.append('attempt reasoning effort is not explicitly pinned to observed shared probe')
         context = {'kind': 'native-review-attempt-v1',
                    'suite_context': {'path': str(suite.path), 'sha256': suite.sha256},
                    'environment_stage': 'attempt-runtime', 'environment': runtime,
                    'suite_environment_transition': environment_transition(suite.context['environment'], runtime),
+                   **({'effort_binding': self.effort_binding} if probe and probe.get('reasoning_effort') is not None else {}),
                    'model_binding': self.model_binding, 'process_cwd': str(Path(cwd or os.getcwd()).absolute()),
                    'workspace': str(self.workspace.absolute()),
                    'output': str(self.output.absolute()), 'started_at_ns': self.started}
@@ -438,6 +481,7 @@ class AttemptInputs:
         if capture.get('raw_capture_completeness') != 'complete':
             self.gaps.append('native raw capture completeness unverified')
         save(self.root / 'capture-status.json', {'kind': 'native-review-attempt-status-v1',
+             **({'effort_binding': self.effort_binding} if self.effort_binding is not None else {}),
              'gaps': self.gaps, 'changed_paths': changed, 'observed_model': capture.get('observed_model'),
              'effective_model': self.model_binding['effective_model'] if self.model_binding else capture.get('observed_model'),
              'model_identity_source': 'shared-probe-explicit-argv-v1' if self.model_binding else

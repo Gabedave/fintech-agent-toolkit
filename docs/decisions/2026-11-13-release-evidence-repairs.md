@@ -103,3 +103,9 @@ The .39 focused runs retained reports that first described test effects and late
 ## Readback producer scope (.41)
 
 Retained reports sometimes deny probe effects after reading separate empty fixture state. The cause remains unproved; passing reports use the same tools. Three readbacks now identify their actual field producers and resource-store mirrors, distinguishing supplied history/status observations from Host defaults. Existing values, tool arguments, probes, acceptance criteria and scorers remain unchanged. This is a truthful evidence-presentation change, not an aggregate effects account or a claim of improved model compliance. Source and frozen-contract boundary review precede live qualification; all prior failures remain retained.
+
+## 2026-11-15: explicit verification settings and scoped reports
+
+Verification callers accept an optional reasoning-effort selection. Observed runs and native runs with claim-review inputs establish the requested setting through their existing capability probe and retain explicit task settings with the resolved model identity. Other native runs retain explicit invocation settings without shared-probe proof. Omission preserves defaults, model-alias behavior and probe counts; no user configuration or permanent installation is changed.
+
+Reports keep each subject/environment, operation and observed result together through recaps, with authorization stated separately. The probe description names its local database/file boundary. Existing report fields, chronology, operation effects and acceptance checks remain. These changes require fresh live evidence; source checks alone do not establish model compliance, and historical failures remain retained.
