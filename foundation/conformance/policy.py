@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import tomllib
 
 
@@ -36,6 +37,36 @@ def _toml(value):
     return json.dumps(value, allow_nan=False)
 
 
+def _policy_paths(home):
+    """Enumerate policy without silently skipping linked or unreadable trees."""
+    def inspect(path, optional=False):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            if optional:
+                return None
+            raise
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError('symlinked policy requires explicit preservation: ' + str(path))
+        return info
+
+    def traversal_error(error):
+        raise error
+
+    rules = home / 'rules'
+    info = inspect(rules, optional=True)
+    paths = []
+    if info is not None:
+        if not stat.S_ISDIR(info.st_mode):
+            raise ValueError('rules policy path is not a directory')
+        for directory, directories, names in os.walk(rules, followlinks=False, onerror=traversal_error):
+            for name in directories + names:
+                inspect(Path(directory) / name)
+            paths.extend(Path(directory) / name for name in names if name.endswith('.rules'))
+    return [*sorted(paths), *(path for path in (home / 'AGENTS.md', home / 'AGENTS.override.md')
+                             if inspect(path, optional=True) is not None)]
+
+
 def prepare_policy(home, source=None):
     """Copy policy into a fresh owned home; never change the original account.
 
@@ -61,15 +92,7 @@ def prepare_policy(home, source=None):
         handle.write('\n'.join(json.dumps(k) + '=' + _toml(v)
                                for k, v in selected.items()) + '\n')
     copied = {}
-    if (source / 'rules').is_symlink():
-        raise ValueError('symlinked rules directory requires explicit preservation')
-    sources = [*sorted((source / 'rules').rglob('*.rules')),
-               source / 'AGENTS.md', source / 'AGENTS.override.md']
-    for path in sources:
-        if path.is_symlink():
-            raise ValueError('symlinked policy requires explicit preservation: ' + str(path))
-        if not path.exists():
-            continue
+    for path in _policy_paths(source):
         relative = path.relative_to(source)
         target = home / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -92,11 +115,7 @@ def verify_policy(home, receipt):
     if hashlib.sha256(json.dumps(security, sort_keys=True).encode()).hexdigest() != receipt['security_config_sha256']:
         raise ValueError('disposable security configuration changed')
     actual = {}
-    for path in [*sorted((home / 'rules').rglob('*.rules')),
-                 home / 'AGENTS.md', home / 'AGENTS.override.md']:
-        if path.is_symlink():
-            raise ValueError('disposable policy became a symbolic link')
-        if path.exists():
-            actual[str(path.relative_to(home))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    for path in _policy_paths(home):
+        actual[str(path.relative_to(home))] = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual != receipt['policy_files']:
         raise ValueError('disposable rules or instructions changed')
