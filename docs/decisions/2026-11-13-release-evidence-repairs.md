@@ -99,3 +99,7 @@ The .38 focused review retained three passing implicit cases and three failing r
 ## Report from performed results (.40)
 
 The .39 focused runs retained reports that first described test effects and later denied those operations. All six cases failed authenticated whole-report review; their other required claim rows were confirmed. The reporting step now constructs summaries from performed work and its evidence, with a short example of a test writing to its temporary database. The reference separates execution claims from permission claims. This replaces ineffective reporting prose and tests a reporting-construction hypothesis; it does not establish internal model causality or reliability. Discovery versus execution, actual-effect truthfulness, authority and frozen acceptance criteria remain unchanged.
+
+## Readback producer scope (.41)
+
+Retained reports sometimes deny probe effects after reading separate empty fixture state. The cause remains unproved; passing reports use the same tools. Three readbacks now identify their actual field producers and resource-store mirrors, distinguishing supplied history/status observations from Host defaults. Existing values, tool arguments, probes, acceptance criteria and scorers remain unchanged. This is a truthful evidence-presentation change, not an aggregate effects account or a claim of improved model compliance. Source and frozen-contract boundary review precede live qualification; all prior failures remain retained.
