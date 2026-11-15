@@ -91,3 +91,7 @@ Some retained .36 reports confused discovery with test execution, reads with mut
 ## Report financial test effects
 
 Some retained .37 reports correctly described local tests and later denied financial or provider operations that those tests performed. The reporting reference now identifies test-ledger postings and provider-stub calls as financial and provider operations in their test environments. This is a reporting definition only: owned test authorization, live-action authority and domain prerequisites remain unchanged. The change adds 24 words without another call, gate or report field. Prior improvements and failures remain retained; structural checks do not establish behavioral remediation.
+
+## Scoped outcome reporting (.39)
+
+The .38 focused review retained three passing implicit cases and three failing refactor cases: broad no-effects summaries contradicted effects already recorded in the same runs. The report step now centers requested outcomes, performed work, verification and blockers; relevant absence findings retain their actor, store and evidence limits. The reference separates authorization, current state and execution history. This tests a reporting-scope hypothesis, not a proven internal model cause or reliability claim. Discovery versus execution, test-effect definitions, authority and frozen acceptance criteria remain unchanged.
