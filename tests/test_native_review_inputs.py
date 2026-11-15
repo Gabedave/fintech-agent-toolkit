@@ -374,6 +374,60 @@ class NativeReviewInputsTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_TOKEN', json.dumps(unsafe))
         self.assertEqual(['__CF_USER_TEXT_ENCODING'], unsafe['unexpected_keys'])
 
+    def test_standalone_behavior_capture_entrypoint_without_pythonpath(self):
+        # A unit import of review_quality inserts ROOT into sys.path and hid the
+        # standalone behavior CLI failure. This child imports only its entrypoint.
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            with self.local_probe():
+                _, release, _, _, env = self.setup_context(directory, probe=True)
+            fixture = directory / 'backend'
+            (fixture / '.git').mkdir(parents=True)
+            verifier = fixture / '.agents/skills/verify-backend/SKILL.md'
+            verifier.parent.mkdir(parents=True)
+            verifier.write_text('Synthetic verifier instructions.\n')
+            (fixture / 'AGENTS.md').write_text('Synthetic fixture instructions.\n')
+            binary = directory / 'bin'; binary.mkdir()
+            catalog = (release / 'review-inputs/catalog.json').read_text()
+            fake = binary / 'codex'
+            fake.write_text(f'#!{sys.executable}\n' +
+                'import json,sys\nfrom pathlib import Path\n' +
+                'if sys.argv[1:] == ["plugin", "list", "--json"]:\n' +
+                f'    print({catalog!r})\n' +
+                'else:\n' +
+                '    assert sys.argv[1] == "exec" and "--json" in sys.argv\n' +
+                '    assert sys.argv[sys.argv.index("--model") + 1] == "synthetic-model"\n' +
+                '    sys.stdin.read()\n' +
+                '    output = Path(sys.argv[sys.argv.index("--output-last-message") + 1])\n' +
+                '    output.write_text(json.dumps({"playbook": "deliberately-wrong-routing"}))\n' +
+                '    print(json.dumps({"type": "thread.started", "thread_id": "offline-cli-control"}))\n' +
+                '    print(json.dumps({"type": "turn.completed"}))\n')
+            fake.chmod(0o755)
+            runtime = {**env, 'PATH': str(binary) + os.pathsep + env['PATH']}
+            self.assertNotIn('PYTHONPATH', runtime)
+            context = release / 'review-inputs/context.json'
+            command = [sys.executable, '-B', str(ROOT / 'scripts/evaluate_behavior.py'),
+                       '--repo', str(fixture), '--evidence-dir', str(directory / 'child-evidence'),
+                       '--model', 'synthetic-model', '--scenario', 'historical-diagnosis',
+                       '--review-input-context', str(context),
+                       '--review-input-context-sha256', evidence.digest(context.read_bytes())]
+            result = subprocess.run(command, cwd=directory, env=runtime,
+                                    capture_output=True, text=True, timeout=30)
+            observed = json.dumps({'command': command, 'exit': result.returncode,
+                                   'stdout': result.stdout, 'stderr': result.stderr})
+            # The scorer must reject this intentionally wrong route after the
+            # actual capture branch successfully retains one usable result.
+            self.assertIn('1/1 usable results; 0/1 operational replacements used', result.stdout, observed)
+            self.assertEqual(1, result.returncode, observed)
+            self.assertNotIn('Traceback', result.stderr, observed)
+            self.assertIn('routing selection', result.stderr, observed)
+            attempts = list((directory / 'child-evidence').glob('behavior-*/behavior-*/result-status.json'))
+            self.assertEqual(1, len(attempts), observed)
+            status = json.loads((attempts[0].parent / 'review-inputs/capture-status.json').read_text())
+            self.assertEqual([], status['gaps'], observed)
+            self.assertIsNone(status['observed_model'])
+            self.assertEqual('synthetic-model', status['effective_model'])
+
     def test_release_forwards_explicit_context_path_and_hash_to_both_children(self):
         import release_smoke as release
         with tempfile.TemporaryDirectory() as temp:

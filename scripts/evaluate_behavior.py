@@ -15,6 +15,7 @@ from process_control import stop_process_group, termination_guard
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 MANIFEST = ROOT / "plugins" / "fintech-engineering" / ".codex-plugin" / "plugin.json"
 SCENARIOS = ROOT / "tests" / "behavior-scenarios.json"
 SCHEMA = ROOT / "tests" / "behavior-result.schema.json"
