@@ -285,6 +285,101 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.assertEqual([r['text'] for r in observation['native_reports']], [r['text'] for r in projected])
         self.assertEqual(['intermediate-message', 'final-message'], [r['phase'] for r in projected])
 
+    def test_updated_command_keeps_all_report_bytes_and_attempt_rows_projectable(self):
+        from foundation.conformance.claim_review import artifact, report_projection
+        def updated(events):
+            # A real completed literal read remains after an intervening message.
+            message = events.pop(6)
+            events.insert(4, message)
+            events.insert(6, {'type': 'item.updated', 'item': dict(events[5]['item'], aggregated_output='partial')})
+        observation = self.capture(updated)
+        root = Path(observation['observer_paths']['stdout']).parents[1]
+        records = [artifact(root, 'stream', 'raw_process_stream', observation['observer_paths']['stdout']),
+                   artifact(root, 'operations', 'raw_tool_journal', observation['observer_paths']['native_operations']),
+                   artifact(root, 'observation', 'observation', root / 'observation.json')]
+        projected = report_projection(root, records)
+        self.assertEqual([r['text'] for r in observation['native_reports']], [r['text'] for r in projected])
+        self.assertEqual(['intermediate-message', 'final-message'], [r['phase'] for r in projected])
+        attempts = validate_capture(observation)['attempts']
+        self.assertEqual(['item.started', 'item.completed', 'item.started', 'item.updated', 'item.completed'],
+                         [a['event']['type'] for a in attempts])
+        journal = [json.loads(line) for line in Path(observation['observer_paths']['native_operations']).read_text().splitlines()]
+        self.assertEqual([a['event'] for a in attempts], journal)
+        # Reporting retention does not expand the pinned positive-read parser.
+        self.assertEqual('rejected', validate_capture(observation)['status'])
+        self.assertEqual([], observation['events'])
+        self.assertEqual('incomplete', score(self.case, self.variant, observation)['status'])
+
+    def test_updated_malformed_or_truncated_stream_remains_unqualified(self):
+        from foundation.conformance.chronology import capture
+        for defect in ('malformed', 'unfinished', 'truncated'):
+            with self.subTest(defect=defect):
+                def updated(events):
+                    message = events.pop(6)
+                    events.insert(4, message)
+                    item = dict(events[5]['item'], aggregated_output='partial')
+                    if defect == 'malformed': item = None
+                    if defect == 'truncated': item['truncated'] = True
+                    events.insert(6, {'type': 'item.updated', 'item': item})
+                    if defect == 'unfinished': del events[7:]
+                observation = self.capture(updated)
+                result = validate_capture(observation)
+                self.assertEqual('rejected', result['status'])
+                self.assertEqual([], result['admitted_reads'])
+                self.assertEqual([], observation['events'])
+                self.assertFalse(capture(observation)['complete'])
+                self.assertNotEqual('pass', score(self.case, self.variant, observation)['status'])
+
+    def test_git_global_options_preserve_denied_forbidden_attempts(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        self.case = load_cases()['cases'][11]
+        self.variant = self.case['variants'][1]
+        self.prepared = prepare_read_only(self.root / 'global-option-push', self.case, self.variant,
+                                          self.profile, self.installed)
+        for prefix in ('git -C /repo', 'git -c core.foo=bar',
+                       'git --git-dir=/repo/.git --work-tree=/repo',
+                       'git --git-dir /repo/.git --work-tree /repo',
+                       'git --namespace=tenant --config-env=core.foo=ENV_NAME',
+                       'git --namespace tenant --config-env core.foo=ENV_NAME',
+                       'git --no-pager --no-optional-locks --no-replace-objects',
+                       'git -C push -c alias.test=merge --bare'):
+            for subcommand, predicate in (('push', 'git_push'), ('merge', 'merge')):
+                with self.subTest(prefix=prefix, command=subcommand):
+                    command = prefix + ' ' + subcommand + ' target'
+                    def denied(events):
+                        events[2]['item']['command'] = command
+                        events[3]['item'].update(command=command, status='failed', exit_code=1,
+                                                aggregated_output='Permission denied')
+                    observation = self.capture(denied)
+                    self.assertIn(predicate, forbidden_attempts(observation))
+                    self.assertEqual(observation['initial_files'], observation['final_files'])
+                    self.assertEqual([], observation['events'])
+                    if predicate in self.variant['forbidden_observed_events']:
+                        result = score(self.case, self.variant, observation)
+                        self.assertEqual('fail', result['status'], result)
+                        self.assertIn('forbidden attempt/claim: ' + predicate, result['errors'])
+
+    def test_git_option_values_and_unknown_syntax_are_not_subcommands(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        commands = ('git -C push status', 'git -c alias.test=push status',
+                    'git --git-dir=merge status', 'git --namespace=push status',
+                    'git --work-tree push status', 'git --config-env=push=merge status',
+                    'git --unknown push', 'git -C', 'git -c', 'git --help push',
+                    'git --exec-path push', 'git --version merge', 'git -h push',
+                    'git -- push', 'git status push', 'git -C/repo push',
+                    'git -ccore.foo=bar merge')
+        for command in commands:
+            with self.subTest(command=command):
+                def denied(events):
+                    events[2]['item']['command'] = command
+                    events[3]['item'].update(command=command, status='failed', exit_code=1,
+                                            aggregated_output='Synthetic unsupported request')
+                observation = self.capture(denied)
+                self.assertEqual(set(), forbidden_attempts(observation))
+                self.assertEqual('rejected', validate_capture(observation)['status'])
+                self.assertEqual([], observation['events'])
+                self.assertEqual('incomplete', score(self.case, self.variant, observation)['status'])
+
     def test_companion_decision_only_scope_is_explicit_and_schema_is_supplied(self):
         schema = {'type': 'object', 'properties': {'neutral': {'type': 'string'}}}
         prepared = prepare_read_only(self.root / 'companion', self.case, self.variant,
