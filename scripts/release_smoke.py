@@ -209,7 +209,9 @@ def main() -> None:
         )
         review_context = native_review_inputs.capture_release_context(
             evidence_dir, ROOT, ROOT / "profiles/gabedave.json", codex_home, env,
+            requested_model=args.model, timeout=args.timeout_seconds,
         ) if args.claim_review_inputs else None
+        effective_model = review_context['effective_model'] if review_context else args.model
         context_args = (["--review-input-context", review_context["path"],
                          "--review-input-context-sha256", review_context["sha256"]]
                         if review_context else [])
@@ -223,8 +225,8 @@ def main() -> None:
             "--evidence-dir", str(evidence_dir),
         ]
         command.extend(context_args)
-        if args.model:
-            command.extend(["--model", args.model])
+        if effective_model:
+            command.extend(["--model", effective_model])
         for scenario in scenarios if args.development else []:
             command.extend(["--scenario", scenario["id"]])
         smoke_output = run(
@@ -249,8 +251,8 @@ def main() -> None:
                 "--evidence-dir", str(evidence_dir),
             ]
             quality_command.extend(context_args)
-            if args.model:
-                quality_command.extend(["--model", args.model])
+            if effective_model:
+                quality_command.extend(["--model", effective_model])
             quality_output = run(quality_command, env, "installed-candidate review-quality pilot",
                                  timeout_seconds=suite_timeout(
                                      len(review_pairs) * 2 + MAX_REVIEW_OPERATIONAL_REPLACEMENTS,

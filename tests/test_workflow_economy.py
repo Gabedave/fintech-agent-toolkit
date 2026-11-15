@@ -35,7 +35,7 @@ class WorkflowEconomy(unittest.TestCase):
     def test_single_authority_record_keeps_structured_output_and_withheld_boundaries(self):
         router = (ROUTER / "SKILL.md").read_text()
         self.assertIn("Reuse this ledger", router)
-        self.assertIn("structured report still includes every required field", router)
+        self.assertIn("required structured outputs keep every required field", router)
         self.assertIn("including installation and withheld merge/deploy", router)
         self.assertNotIn("{{DELIVERY_POLICY}}", router)
         self.assertIn("{{DELIVERY_POLICY}}", (ROUTER / "references/playbooks.md").read_text())

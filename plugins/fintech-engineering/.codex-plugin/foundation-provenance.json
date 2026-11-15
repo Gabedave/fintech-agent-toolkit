@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "73835eb131f74a21caf4818bead610f5c253f901",
+  "source_commit": "e9458bbafb719e1d0261368db9a079dbf4756a4a",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.30",
+  "plugin_version": "0.2.31",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.30",
-    "commit": "73835eb131f74a21caf4818bead610f5c253f901",
-    "digest": "74f4dc47ae933591f8884f3ef4c1d727519d5f1ef7ee5c685880867f9a6c7652"
+    "version": "1.0.31",
+    "commit": "e9458bbafb719e1d0261368db9a079dbf4756a4a",
+    "digest": "5167f9922ee4f525191a8dc86d17faf845916faf3cbd910981925e836e32071b"
   },
   "adapter_revision": "1.0.11",
-  "profile_digest": "f89a600a6d02e2aa462f8c625fb6d7ae42abbfede97bed234da3ec0e4bf74ae1",
+  "profile_digest": "261f29abf0fb68fb544746318f190fe61c70cc704d6d36dcbadcef8b707a06be",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "404214a98f32f6a017820f899756676d6d8f9f119af295785070794c45b18e5d",
+      "sha256": "c0d0e9faacfece875420f145eb64b6fbd9b8affc94c77b8d5a31a36b3df9aaed",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -70,7 +70,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/SKILL.md": {
-      "sha256": "a4d0fdf4f9b326586d0c8266d9a18c5e5f786ddeb31c6f7a267f0527634fe723",
+      "sha256": "7ee17ca46113fb515df2ca44bf2d377869ec2cf62e047ba25496750228bb472a",
       "mode": "0644"
     },
     "skills/fintech-mode/agents/openai.yaml": {
@@ -86,7 +86,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/references/playbooks.md": {
-      "sha256": "8a108883822c915d2f4089c0c5351d266c57227221ec60062a90b858a6b6aec8",
+      "sha256": "7147716c395e153c6def9139860a3d636c8116dd98fac23483c36fd8b82abe21",
       "mode": "0644"
     },
     "skills/fintech-mode/references/playbooks/bug-fix.md": {
@@ -230,5 +230,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "a110b2689ad0eb9c22def427e68aee003a072ca7a0c500b521a7f94d2b6f936e"
+  "content_digest": "5c12c02b7317c0289fec8ae60e891ed2359c24a7e49910c531b1ffce51071c5f"
 }

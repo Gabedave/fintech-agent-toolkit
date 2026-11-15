@@ -1,29 +1,29 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "73835eb131f74a21caf4818bead610f5c253f901",
+  "source_commit": "e9458bbafb719e1d0261368db9a079dbf4756a4a",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.30",
+  "plugin_version": "0.2.31",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.30",
-    "commit": "73835eb131f74a21caf4818bead610f5c253f901",
-    "digest": "74f4dc47ae933591f8884f3ef4c1d727519d5f1ef7ee5c685880867f9a6c7652"
+    "version": "1.0.31",
+    "commit": "e9458bbafb719e1d0261368db9a079dbf4756a4a",
+    "digest": "5167f9922ee4f525191a8dc86d17faf845916faf3cbd910981925e836e32071b"
   },
   "adapter_revision": "1.0.11",
-  "profile_digest": "f89a600a6d02e2aa462f8c625fb6d7ae42abbfede97bed234da3ec0e4bf74ae1",
-  "generated_tree_digest": "84b8d6af206052a612aa6a1a61fabde19a5ac9ef6ea87e721b0b705afdb4ee24",
+  "profile_digest": "261f29abf0fb68fb544746318f190fe61c70cc704d6d36dcbadcef8b707a06be",
+  "generated_tree_digest": "336b1cf94dc0056d43468c6bba26d6b1243d999ff449d83dedee3f4674b00753",
   "files": {
     ".agents/plugins/marketplace.json": {
       "sha256": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": {
-      "sha256": "ebc7afaf6bf2be30e4f85bdfc29e550a218dafbbdc098d3c7d8135b5511cfff5",
+      "sha256": "33de11b521c856e58776ec32d841a54d6c671c8afce841aeeb172068227985fd",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/plugin.json": {
-      "sha256": "404214a98f32f6a017820f899756676d6d8f9f119af295785070794c45b18e5d",
+      "sha256": "c0d0e9faacfece875420f145eb64b6fbd9b8affc94c77b8d5a31a36b3df9aaed",
       "mode": "0644"
     },
     "plugins/fintech-engineering/scripts/verify_merge_candidate.py": {
@@ -79,7 +79,7 @@
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/fintech-mode/SKILL.md": {
-      "sha256": "a4d0fdf4f9b326586d0c8266d9a18c5e5f786ddeb31c6f7a267f0527634fe723",
+      "sha256": "7ee17ca46113fb515df2ca44bf2d377869ec2cf62e047ba25496750228bb472a",
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/fintech-mode/agents/openai.yaml": {
@@ -95,7 +95,7 @@
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/fintech-mode/references/playbooks.md": {
-      "sha256": "8a108883822c915d2f4089c0c5351d266c57227221ec60062a90b858a6b6aec8",
+      "sha256": "7147716c395e153c6def9139860a3d636c8116dd98fac23483c36fd8b82abe21",
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/fintech-mode/references/playbooks/bug-fix.md": {

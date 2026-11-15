@@ -49,7 +49,25 @@ class NativeReviewInputsTests(unittest.TestCase):
         with mock.patch.object(subprocess, 'Popen', side_effect=launch):
             yield attempts
 
-    def setup_context(self, directory):
+    @contextlib.contextmanager
+    def local_probe(self, headers=('synthetic-model',), exit_code=0):
+        original = subprocess.Popen
+        commands = []
+        def launch(command, **kwargs):
+            if command[0] in ('git', 'uname', 'file'):
+                return original(command, **kwargs)
+            self.assertEqual(['codex', 'exec'], command[:2])
+            self.assertNotIn('--json', command)
+            commands.append(command)
+            code = 'import sys; sys.stdin.read(); '
+            code += ''.join(f'print({("model: " + model)!r},file=sys.stderr); ' for model in headers)
+            code += "print('PRIVATE_DIAGNOSTIC',file=sys.stderr); print('PROBE_READY'); "
+            code += f'sys.exit({exit_code})'
+            return original([sys.executable, '-B', '-c', code], **kwargs)
+        with mock.patch.object(subprocess, 'Popen', side_effect=launch):
+            yield commands
+
+    def setup_context(self, directory, probe=False):
         import native_review_inputs as inputs
         profile_path = next(path for path in (ROOT / 'profiles').glob('*.json')
                             if json.loads(path.read_text())['plugin_name'] == json.loads(behavior.MANIFEST.read_text())['name'])
@@ -65,19 +83,19 @@ class NativeReviewInputsTests(unittest.TestCase):
                'CODEX_HOME': str(home), 'PYTHONDONTWRITEBYTECODE': '1'}
         release = evidence.create_run(directory / 'evidence', 'release', {'synthetic': True})
         context = inputs.prepare_release_context(release, ROOT, profile_path, home, env,
-                                                 json.dumps(catalog).encode(), installed_at_ns=1)
+                                                 json.dumps(catalog).encode(), installed_at_ns=1, probe_model=probe)
         suite = evidence.create_run(release, 'suite', {'synthetic': True})
         handle = inputs.load_suite_context(context['path'], context['sha256'], suite, env, 'synthetic-control', candidate_root=ROOT)
         return inputs, release, suite, handle, env
 
-    def invoke(self, kind, directory, suite, handle):
+    def invoke(self, kind, directory, suite, handle, model=None):
         if kind == 'behavior':
             fixture = directory / 'fixture'
             fixture.mkdir(exist_ok=True)
             (fixture / 'AGENTS.md').write_text('synthetic fixture instructions\n')
-            return behavior.run_scenario(fixture, {'id': 'synthetic', 'prompt': 'route'}, None, 5,
+            return behavior.run_scenario(fixture, {'id': 'synthetic', 'prompt': 'route'}, model, 5,
                                          evidence_dir=suite, review_inputs=handle)
-        return review.run_review(review.load_suite()[0], 'broken', 5,
+        return review.run_review(review.load_suite()[0], 'broken', 5, model=model,
                                  evidence_dir=suite, review_inputs=handle)[0]
 
     def test_canonical_callers_retain_pre_post_bytes_after_cleanup_for_all_process_outcomes(self):
@@ -246,6 +264,116 @@ class NativeReviewInputsTests(unittest.TestCase):
         self.assertEqual(['PROVIDER_TOKEN'], row['unexpected_keys'])
         self.assertNotIn('NEVER_PERSIST', json.dumps(row))
 
+    def test_release_capture_probes_once_and_resolves_requested_alias(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            inputs, release, _, handle, env = self.setup_context(directory)
+            catalog = (release / 'review-inputs/catalog.json').read_bytes()
+            profile = next(row['original_path'] for row in handle.release['source_index']
+                           if row['role'] == 'candidate-profile')
+            next_release = directory / 'next-release'; next_release.mkdir()
+            original_run = subprocess.run
+            catalog_calls = []
+            def run(command, **kwargs):
+                if command[:3] == ['codex', 'plugin', 'list']:
+                    catalog_calls.append(command)
+                    return subprocess.CompletedProcess(command, 0, catalog, b'')
+                return original_run(command, **kwargs)
+            with self.local_probe() as probes, mock.patch.object(subprocess, 'run', side_effect=run):
+                context = inputs.capture_release_context(next_release, ROOT, profile, env['CODEX_HOME'], env,
+                                                         requested_model='requested-alias', timeout=5)
+            self.assertEqual(1, len(catalog_calls))
+            self.assertEqual(1, len(probes))
+            self.assertEqual('requested-alias', probes[0][probes[0].index('--model') + 1])
+            self.assertEqual('synthetic-model', context['effective_model'])
+            retained = json.loads(Path(context['path']).read_text())
+            self.assertEqual('synthetic-model', inputs.validate_model_probe(
+                Path(context['path']).parent, retained['model_probe'], retained['environment']))
+
+    def test_shared_probe_binds_json_calls_without_inventing_task_headers(self):
+        for kind in ('behavior', 'review'):
+            for outcome in ('succeeded', 'nonzero', 'timed_out'):
+                with self.subTest(kind=kind, outcome=outcome), tempfile.TemporaryDirectory() as temp:
+                    directory = Path(temp)
+                    with self.local_probe() as probes:
+                        inputs, release, suite, handle, env = self.setup_context(directory, probe=True)
+                    self.assertEqual(1, len(probes))
+                    with mock.patch.dict(os.environ, env, clear=True), self.local_cli(outcome, model_header=False) as calls:
+                        result = self.invoke(kind, directory, suite, handle, model='synthetic-model')
+                    self.assertEqual('retained', result['playbook'])
+                    self.assertEqual(1, len(calls))
+                    attempt = next(suite.glob(kind + '-*/invocation.json')).parent
+                    native = json.loads((attempt / 'capture.json').read_text())
+                    context = json.loads((attempt / 'review-inputs/context.json').read_text())
+                    status = json.loads((attempt / 'review-inputs/capture-status.json').read_text())
+                    self.assertIsNone(native['observed_model'])
+                    self.assertIsNone(status['observed_model'])
+                    self.assertEqual('synthetic-model', status['effective_model'])
+                    self.assertEqual([] if outcome == 'succeeded' else ['native raw capture completeness unverified'],
+                                     status['gaps'])
+                    self.assertEqual('shared-probe-explicit-argv-v1', status['model_identity_source'])
+                    self.assertEqual(handle.release['model_probe']['result']['sha256'],
+                                     context['model_binding']['probe_result_sha256'])
+                    self.assertTrue((attempt / 'result-status.json').is_file())
+                    self.assertFalse(calls[0][0].exists())
+                    for path in (release / 'review-inputs/model-probe').iterdir():
+                        self.assertNotIn(b'PRIVATE_DIAGNOSTIC', path.read_bytes())
+
+    def test_incomplete_or_conflicting_probe_cannot_supply_model_identity(self):
+        for headers, code in (((), 0), (('one', 'two'), 0), (('synthetic-model',), 7)):
+            with self.subTest(headers=headers, code=code), tempfile.TemporaryDirectory() as temp:
+                with self.local_probe(headers, code), self.assertRaisesRegex(RuntimeError, 'effective model'):
+                    self.setup_context(Path(temp), probe=True)
+                self.assertEqual([], list(Path(temp).rglob('invocation.json')))
+                self.assertTrue(list(Path(temp).rglob('result.json')))
+
+    def test_probe_tamper_rejected_and_wrong_task_pin_stays_a_gap(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            with self.local_probe():
+                inputs, release, suite, handle, env = self.setup_context(directory, probe=True)
+            with mock.patch.dict(os.environ, env, clear=True), self.local_cli(model_header=False):
+                result = self.invoke('behavior', directory, suite, handle, model='wrong-model')
+            self.assertEqual('retained', result['playbook'])
+            status = json.loads(next(suite.glob('behavior-*/review-inputs/capture-status.json')).read_text())
+            self.assertIsNone(status['effective_model'])
+            self.assertIn('attempt model is not explicitly pinned to observed shared probe', status['gaps'])
+            probe_file = release / 'review-inputs/model-probe/diagnostics.json'
+            probe_file.write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'retained model probe changed'):
+                inputs.load_suite_context(release / 'review-inputs/context.json',
+                    evidence.digest((release / 'review-inputs/context.json').read_bytes()),
+                    release / 'other-suite', env, 'other', candidate_root=ROOT)
+
+    def test_environment_stages_preserve_runtime_change_and_detect_attempt_drift(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            inputs, release, suite, handle, env = self.setup_context(directory)
+            runtime = {**env, '__CF_USER_TEXT_ENCODING': '0x1F5:0:2'}
+            other = release / 'runtime-suite'; other.mkdir()
+            path = release / 'review-inputs/context.json'
+            handle = inputs.load_suite_context(path, evidence.digest(path.read_bytes()), other, runtime,
+                                               'runtime', candidate_root=ROOT)
+            transition = handle.context['installation_environment_transition']
+            self.assertEqual(['__CF_USER_TEXT_ENCODING'], transition['added_keys'])
+            self.assertNotEqual(transition['from_sha256'], transition['to_sha256'])
+            self.assertEqual('0x1F5:0:2', transition['changed_safe_values']['__CF_USER_TEXT_ENCODING']['after'])
+            with mock.patch.dict(os.environ, env, clear=True), self.local_cli():
+                result = self.invoke('behavior', directory, suite, handle)
+            self.assertEqual('retained', result['playbook'])
+            status = json.loads(next(suite.glob('behavior-*/review-inputs/capture-status.json')).read_text())
+            self.assertIn('attempt environment differs from suite runtime', status['gaps'])
+
+    def test_runtime_encoding_is_retained_only_as_validated_safe_value(self):
+        import native_review_inputs as inputs
+        env = {'PATH': '/synthetic', '__CF_USER_TEXT_ENCODING': '0x1F5:0:2'}
+        observed = inputs.environment(env)
+        self.assertEqual(env, observed['safe_values'])
+        self.assertEqual(evidence.digest(inputs.canonical(env)), observed['sha256'])
+        unsafe = inputs.environment({'__CF_USER_TEXT_ENCODING': 'PRIVATE_TOKEN'})
+        self.assertNotIn('PRIVATE_TOKEN', json.dumps(unsafe))
+        self.assertEqual(['__CF_USER_TEXT_ENCODING'], unsafe['unexpected_keys'])
+
     def test_release_forwards_explicit_context_path_and_hash_to_both_children(self):
         import release_smoke as release
         with tempfile.TemporaryDirectory() as temp:
@@ -262,7 +390,7 @@ class NativeReviewInputsTests(unittest.TestCase):
             # The launch seam is checked without a model/installation. Context
             # preparation itself is exercised against actual filesystem bytes above.
             import native_review_inputs as inputs
-            sentinel = {'path': str(directory / 'context.json'), 'sha256': 'a' * 64}
+            sentinel = {'path': str(directory / 'context.json'), 'sha256': 'a' * 64, 'effective_model': 'observed-model'}
             auth = directory / 'auth.json'; auth.write_text('{}')
             with mock.patch.object(sys, 'argv', ['release_smoke.py', '--repo', str(directory / 'backend'),
                     '--auth-file', str(auth), '--evidence-dir', str(directory / 'fresh'),
@@ -275,6 +403,8 @@ class NativeReviewInputsTests(unittest.TestCase):
             children = [c for c in commands if any('evaluate_' in str(t) for t in c)]
             self.assertEqual(2, len(children))
             for command in children:
+                self.assertIn('--model', command)
+                self.assertEqual('observed-model', command[command.index('--model') + 1])
                 self.assertEqual(sentinel['path'], command[command.index('--review-input-context') + 1])
                 self.assertEqual(sentinel['sha256'], command[command.index('--review-input-context-sha256') + 1])
 

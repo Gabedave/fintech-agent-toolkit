@@ -113,7 +113,8 @@ class NativeAttempt:
         if self.review_inputs is not None:
             try:
                 review_capture = self.review_inputs.begin_attempt(
-                    self.path, self.workspace, self.output, os.environ if env is None else env)
+                    self.path, self.workspace, self.output, os.environ if env is None else env,
+                    command=command, cwd=cwd)
             except (OSError, ValueError, TypeError) as error:
                 self._review_gap("initial", error)
         try:
