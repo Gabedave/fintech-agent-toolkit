@@ -23,6 +23,29 @@ from .policy import safe_env, prepare_policy, verify_policy
 from .observation_capture import native_operation_error, authoritative_snapshot
 
 
+REASONING_EFFORTS = ('none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra')
+
+
+def reasoning_effort_args(value):
+    if value is None:
+        return []
+    if value not in REASONING_EFFORTS:
+        raise ValueError('unsupported reasoning effort')
+    return ['-c', 'model_reasoning_effort=' + json.dumps(value)]
+
+
+def require_effective_effort(probe, requested):
+    """Only an explicit setting requires a complete observed effort identity."""
+    if requested is None:
+        return None
+    reasoning_effort_args(requested)
+    efforts = {h.removeprefix('reasoning effort: ') for h in probe['diagnostics']['allowlisted_headers']
+               if h.startswith('reasoning effort: ')}
+    if not complete_probe(probe) or efforts != {requested}:
+        raise RuntimeError('reasoning effort could not be pinned from a complete successful CLI probe')
+    return requested
+
+
 @contextmanager
 def termination_guard():
     """Unwind child-process cleanup when the evaluator receives SIGTERM."""
@@ -134,6 +157,8 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
         decoded = line.decode('utf-8', errors='replace')
         if name == 'stderr' or not json_mode:
             if re.fullmatch('model: [A-Za-z0-9._:/-]{1,120}', decoded):
+                safe_headers.append(decoded)
+            if decoded in {'reasoning effort: ' + effort for effort in REASONING_EFFORTS}:
                 safe_headers.append(decoded)
             if re.fullmatch('OpenAI Codex v[A-Za-z0-9._/-]{1,120}( \\(research preview\\))?', decoded):
                 safe_headers.append(decoded)
@@ -556,6 +581,7 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
     command[2:2] = workbench_permissions()
     if args.model:
         command[2:2] = ['--model', args.model]
+    command[2:2] = reasoning_effort_args(getattr(args, 'reasoning_effort', None))
     from .handshake_diagnostics import binding as handshake_binding, canonical, sha, snapshot
     handshake_live = private / 'host-handshake-live.jsonl'
     config['handshake_diagnostics'] = {'path': str(handshake_live), 'command_sha256': sha(canonical(command))}
@@ -625,6 +651,9 @@ def run_one(case, variant, profile, installed, home, output, args, implicit=Fals
               'source_files_after':postlaunch_sources(private, raw.get('source_launch')),
               'handshake_diagnostics': handshake,
               'producer_run_dir':str(output)}
+    if getattr(args, 'reasoning_effort', None) is not None:
+        metadata['reasoning_effort'] = {'requested': args.reasoning_effort,
+            'effective': args.reasoning_effort, 'identity_source': 'shared-probe-explicit-argv-v1'}
     if not metadata['model_observed']:
         metadata['model_observed'] = getattr(args, 'effective_model', None) or 'not reported; effective model unverified'
     metadata['harness_revision'] = subprocess.check_output(['git', '-C', str(Path(__file__).resolve().parents[2]), 'rev-parse', 'HEAD'], text=True).strip()
@@ -768,6 +797,7 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--auth-file', type=Path)
     parser.add_argument('--model')
+    parser.add_argument('--reasoning-effort', choices=REASONING_EFFORTS)
     parser.add_argument('--development', action='store_true', help='Selected regression evidence, never full release qualification.')
     parser.add_argument('--case', action='append', default=[], help='Development case-id/variant-id; no retries.')
     parser.add_argument('--timeout-seconds', type=int, default=120)
@@ -878,6 +908,7 @@ def main():
         probe_command[2:2] = ['--disable', 'tool_suggest', '-c', 'web_search="disabled"']
         if args.model:
             probe_command[2:2] = ['--model', args.model]
+        probe_command[2:2] = reasoning_effort_args(args.reasoning_effort)
         probe = stream_process(
             probe_command,
             safe_env(home),
@@ -888,6 +919,7 @@ def main():
         )
         args.model_probe = probe['diagnostics']
         args.effective_model = require_effective_model(probe)
+        require_effective_effort(probe, args.reasoning_effort)
         # Pin the discovered actual default consistently for all scored tasks.
         args.model = args.effective_model
         results = []
