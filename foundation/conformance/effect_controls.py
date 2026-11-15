@@ -857,6 +857,8 @@ def emit(v):
     print(json.dumps(v), flush=True)
 
 def hold():
+    (pathlib.Path(sys.argv[0]).parent / 'interruption-ready.json').write_text(
+        json.dumps({'phase': 'interruption-ready', 'ns': time.monotonic_ns()}))
     time.sleep(30)
 
 def message(t):
@@ -1004,6 +1006,15 @@ def actual(spec, root, *, program=None, require_timeout=True, require_effect=Tru
     args = SimpleNamespace(candidate=str(candidate), profile=str(root / 'profile.json'), model=None, timeout_seconds=2, installation_completed_ns=1, candidate_revision='synthetic-revision', contract_binding='unverified', codex_config_sha256='synthetic-config', effective_model='synthetic-local-producer', profile_role='synthetic-adopter', fixtures=None)
     real_stream = runner.stream_process
 
+    def at_effect_hold():
+        try:
+            marker = json.loads((root / 'interruption-ready.json').read_text())
+        except (FileNotFoundError, ValueError):
+            return False
+        return (isinstance(marker, dict)
+                and marker.get('phase') == 'interruption-ready'
+                and type(marker.get('ns')) is int and marker['ns'] > 0)
+
     def transport(command, env, cwd, output, timeout, prompt=None):
         actual_command = [sys.executable, str(root / 'producer.py'), str(C), str(pathlib.Path(output) / 'host-config.json'), str(root / 'control.json'), '--json']
         sourcefacts = {'kind': 'explicit-controlled-sensitivity-source-premise', 'actual_model_calls': 0, 'actual_semantic_receipts': 0, 'configured_command': command, 'executed_command': actual_command, 'commands_equal': command == actual_command, 'producer_sha256': sha256((root / 'producer.py').read_bytes()), 'conformance_sources': {str(p.relative_to(C)): sha256(p.read_bytes()) for p in (C / 'foundation/conformance').glob('*.py')}, 'construction': 'Inherited exact Host.call with controlled effect-boundary pause/injection. This does not authenticate actual MCP/model producer origin.'}
@@ -1011,7 +1022,14 @@ def actual(spec, root, *, program=None, require_timeout=True, require_effect=Tru
         from .source_binding import prepare_sensitivity_launch
         launch = prepare_sensitivity_launch(output, actual_command, root / 'producer.py', sha256(program.encode()),
                                              input_paths=[root / 'control.json'])
-        raw = real_stream(actual_command, env, cwd, output, 0.8, source_launch=launch)
+        if require_timeout:
+            # Start capture immediately; interrupt only after the actual effect
+            # reaches its original hold, or the fixed outer watchdog expires.
+            raw = real_stream(actual_command, env, cwd, output, 5,
+                              source_launch=launch, synthetic_ready=at_effect_hold,
+                              synthetic_ready_timeout=0.1)
+        else:
+            raw = real_stream(actual_command, env, cwd, output, 0.8, source_launch=launch)
         save(root / 'raw-process-return.json', {k: v for k, v in raw.items() if k != 'events'})
         cfg = json.loads((pathlib.Path(output) / 'host-config.json').read_text())
         cap = spec['capture']
@@ -1052,6 +1070,9 @@ def actual(spec, root, *, program=None, require_timeout=True, require_effect=Tru
     if require_timeout:
         assert o['process']['timed_out']
     assert any((json.loads(line).get('type') == 'item.completed' and json.loads(line).get('item', {}).get('type') == 'mcp_tool_call' for line in (run / 'observer/stdout.jsonl').read_text().splitlines())), 'No completed actual prep event: construction failure'
+    if require_timeout:
+        raw = json.loads((root / 'raw-process-return.json').read_text())
+        assert raw['synthetic_coordination']['ready_observed'], 'No actual effect-boundary readiness: construction failure'
     if require_effect:
         assert o['initial_files'] != o['final_files'], 'No actual file effect: construction failure'
     proved = set(o['unobserved_mutations'])
