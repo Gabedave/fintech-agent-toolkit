@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import native_evidence
+import native_review_inputs
 
 from process_control import stop_process_group, termination_guard
 
@@ -122,6 +123,8 @@ def main() -> None:
     parser.add_argument("--evidence-dir", type=Path, required=True,
                         help="Persistent evidence storage outside candidate and fixture trees.")
     parser.add_argument("--model", help="Optional Codex model override for the smoke suite.")
+    parser.add_argument("--claim-review-inputs", action="store_true",
+                        help="Retain optional public inputs for independent release claim review.")
     parser.add_argument(
         "--timeout-seconds",
         type=int,
@@ -204,6 +207,12 @@ def main() -> None:
             "candidate plugin installation",
             timeout_seconds=INSTALL_TIMEOUT_SECONDS,
         )
+        review_context = native_review_inputs.capture_release_context(
+            evidence_dir, ROOT, ROOT / "profiles/gabedave.json", codex_home, env,
+        ) if args.claim_review_inputs else None
+        context_args = (["--review-input-context", review_context["path"],
+                         "--review-input-context-sha256", review_context["sha256"]]
+                        if review_context else [])
         command = [
             sys.executable,
             str(ROOT / "scripts" / "evaluate_behavior.py"),
@@ -213,6 +222,7 @@ def main() -> None:
             str(args.timeout_seconds),
             "--evidence-dir", str(evidence_dir),
         ]
+        command.extend(context_args)
         if args.model:
             command.extend(["--model", args.model])
         for scenario in scenarios if args.development else []:
@@ -238,6 +248,7 @@ def main() -> None:
                 str(args.timeout_seconds),
                 "--evidence-dir", str(evidence_dir),
             ]
+            quality_command.extend(context_args)
             if args.model:
                 quality_command.extend(["--model", args.model])
             quality_output = run(quality_command, env, "installed-candidate review-quality pilot",

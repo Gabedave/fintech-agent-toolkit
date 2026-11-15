@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 import native_evidence
+import native_review_inputs
 import evaluate_behavior
 from process_control import stop_process_group, termination_guard
 
@@ -400,7 +401,7 @@ Return the requested structured review only; no external review submission is au
 """
 
 
-def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evidence_dir=None):
+def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evidence_dir=None, review_inputs=None):
     with tempfile.TemporaryDirectory(prefix="fintech-review-") as directory:
         workspace = Path(directory)
         materialize(case, variant, workspace)
@@ -422,6 +423,7 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
             command, prompt, schema, model,
             {"case": case["id"], "variant": variant, "snapshot": snapshot,
              "fixture_hashes": before, "reviewer_attempts": reviewer_attempts}, output,
+            review_inputs=review_inputs, workspace=workspace,
         ) if evidence_dir is not None else None
         process_error = None
         try:
@@ -459,10 +461,11 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
 
 
 def run_review_with_replacement(case, variant, timeout, model=None,
-                                replacement_available=False, *, evidence_dir=None):
+                                replacement_available=False, *, evidence_dir=None, review_inputs=None):
     try:
         result, snapshot = run_review(
-            case, variant, timeout, model, reviewer_attempts=1, evidence_dir=evidence_dir
+            case, variant, timeout, model, reviewer_attempts=1, evidence_dir=evidence_dir,
+            **({"review_inputs": review_inputs} if review_inputs is not None else {})
         )
         return result, snapshot, 1, False, None
     except (EvaluationError, OSError) as first_error:
@@ -470,7 +473,8 @@ def run_review_with_replacement(case, variant, timeout, model=None,
             return None, None, 1, False, first_error
         try:
             result, snapshot = run_review(
-                case, variant, timeout, model, reviewer_attempts=2, evidence_dir=evidence_dir
+                case, variant, timeout, model, reviewer_attempts=2, evidence_dir=evidence_dir,
+                **({"review_inputs": review_inputs} if review_inputs is not None else {})
             )
             return result, snapshot, 2, True, None
         except (EvaluationError, OSError) as replacement_error:
@@ -489,7 +493,11 @@ def main():
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--model", help="Optional explicit model override.")
+    parser.add_argument("--review-input-context", type=Path)
+    parser.add_argument("--review-input-context-sha256")
     args = parser.parse_args()
+    if bool(args.review_input_context) != bool(args.review_input_context_sha256):
+        parser.error("review input context requires its explicit SHA256")
     if not 30 <= args.timeout_seconds <= 180:
         parser.error("timeout must be between 30 and 180 seconds per review")
     try:
@@ -511,6 +519,10 @@ def main():
         version = json.loads(evaluate_behavior.MANIFEST.read_text())["version"]
         if plugin.get("version") != version:
             raise EvaluationError("installed plugin version does not match the candidate")
+        review_inputs = native_review_inputs.load_suite_context(
+            args.review_input_context, args.review_input_context_sha256, evidence_dir,
+            safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex")),
+            'review-quality', candidate_root=ROOT) if args.review_input_context else None
         failures = []
         detected = accepted = false_blockers = completed = replacements = 0
         started = time.monotonic()
@@ -526,6 +538,7 @@ def main():
                         args.model,
                         replacement_available=replacements == 0,
                         evidence_dir=evidence_dir,
+                        **({"review_inputs": review_inputs} if review_inputs is not None else {}),
                     )
                 )
                 replacements += int(replacement_used)

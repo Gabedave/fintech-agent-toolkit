@@ -2,12 +2,14 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 import native_evidence
+import native_review_inputs
 
 from process_control import stop_process_group, termination_guard
 
@@ -134,7 +136,7 @@ def read_structured_result(output: Path, scenario_id: str, *, capture=None) -> d
 
 
 def run_scenario(repo: Path, scenario: dict, model: str | None,
-                 timeout_seconds: int, *, evidence_dir=None) -> dict:
+                 timeout_seconds: int, *, evidence_dir=None, review_inputs=None) -> dict:
     with tempfile.TemporaryDirectory(prefix="fintech-behavior-") as temp_dir:
         output = Path(temp_dir) / "result.json"
         command = [
@@ -158,6 +160,7 @@ def run_scenario(repo: Path, scenario: dict, model: str | None,
         capture = native_evidence.NativeAttempt(
             evidence_dir, "behavior-" + scenario["id"], command, prompt, SCHEMA, model,
             {"scenario": scenario, "fixture": str(repo)}, output,
+            review_inputs=review_inputs, workspace=repo,
         ) if evidence_dir is not None else None
         try:
             returncode, _, stderr = run_command(
@@ -194,17 +197,19 @@ def run_scenario_with_replacement(
     timeout_seconds: int,
     *,
     replacement_available: bool,
-    evidence_dir=None,
+    evidence_dir=None, review_inputs=None,
 ) -> tuple[dict | None, int, bool, BehaviorEvaluationError | None]:
     """Return one usable result, allowing one fresh operational replacement."""
     try:
-        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir), 1, False, None
+        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
+                            **({"review_inputs": review_inputs} if review_inputs is not None else {})), 1, False, None
     except BehaviorEvaluationError as first_error:
         if not replacement_available:
             return None, 1, False, first_error
         first_error_text = str(first_error)
     try:
-        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir), 2, True, None
+        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
+                            **({"review_inputs": review_inputs} if review_inputs is not None else {})), 2, True, None
     except BehaviorEvaluationError as replacement_error:
         error = BehaviorEvaluationError(
             f"initial attempt failed: {first_error_text}; "
@@ -218,7 +223,7 @@ def evaluate_scenarios(
     scenarios: list[dict],
     model: str | None,
     timeout_seconds: int,
-    *, evidence_dir=None,
+    *, evidence_dir=None, review_inputs=None,
 ) -> tuple[list[str], list[str], int, int]:
     failures: list[str] = []
     advisories: list[str] = []
@@ -232,6 +237,7 @@ def evaluate_scenarios(
             timeout_seconds,
             replacement_available=replacements < MAX_OPERATIONAL_REPLACEMENTS,
             evidence_dir=evidence_dir,
+            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
         )
         if replacement_used:
             replacements += 1
@@ -807,8 +813,12 @@ def main() -> None:
     parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--scenario", action="append", help="Run only this scenario ID.")
     parser.add_argument("--model", help="Optional Codex model override.")
+    parser.add_argument("--review-input-context", type=Path)
+    parser.add_argument("--review-input-context-sha256")
     parser.add_argument("--timeout-seconds", type=int, default=120)
     args = parser.parse_args()
+    if bool(args.review_input_context) != bool(args.review_input_context_sha256):
+        parser.error("review input context requires its explicit SHA256")
     if not 30 <= args.timeout_seconds <= 180:
         parser.error("timeout must be between 30 and 180 seconds per scenario")
 
@@ -855,8 +865,12 @@ def main() -> None:
         for scenario in suite["scenarios"]
         if not selected or scenario["id"] in selected
     ]
+    review_inputs = native_review_inputs.load_suite_context(
+        args.review_input_context, args.review_input_context_sha256, evidence_dir,
+        os.environ, 'legacy-decisions', candidate_root=ROOT) if args.review_input_context else None
     failures, advisories, replacements, usable_results = evaluate_scenarios(
-        repo, scenarios, args.model, args.timeout_seconds, evidence_dir=evidence_dir
+        repo, scenarios, args.model, args.timeout_seconds, evidence_dir=evidence_dir,
+        **({"review_inputs": review_inputs} if review_inputs is not None else {})
     )
     for process_note in native_evidence.unsuccessful_usable_processes(evidence_dir):
         print(f"Native process: {process_note}; capture completeness unverified")

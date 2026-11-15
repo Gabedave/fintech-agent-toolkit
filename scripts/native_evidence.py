@@ -77,10 +77,13 @@ def validate_location(base, *protected):
 
 
 class NativeAttempt:
-    def __init__(self, root, label, command, prompt, schema, model, bindings, output):
+    def __init__(self, root, label, command, prompt, schema, model, bindings, output,
+                 *, review_inputs=None, workspace=None):
         label = re.sub(r"[^a-zA-Z0-9_.-]", "-", label)
         self.path = Path(tempfile.mkdtemp(prefix=label + "-", dir=root))
         self.output = output
+        self.review_inputs = review_inputs
+        self.workspace = workspace
         self._retention_attempted = False
         self._retained_sha256 = None
         self._sealed_result_sha256 = None
@@ -97,7 +100,32 @@ class NativeAttempt:
         })
         write_json(self.path / "process.json", {"status": "not_started"})
 
+    def _review_gap(self, phase, error):
+        # Qualification capture trouble cannot replace a usable model result.
+        try:
+            with (self.path / "review-input-gaps.jsonl").open("a") as stream:
+                stream.write(json.dumps({"phase": phase, "error_type": type(error).__name__}) + "\n")
+        except OSError:
+            pass  # Missing capture/status files themselves remain evidence gaps.
+
     def run(self, command, prompt, timeout, *, cwd=None, env=None):
+        review_capture = None
+        if self.review_inputs is not None:
+            try:
+                review_capture = self.review_inputs.begin_attempt(
+                    self.path, self.workspace, self.output, os.environ if env is None else env)
+            except (OSError, ValueError, TypeError) as error:
+                self._review_gap("initial", error)
+        try:
+            return self._run(command, prompt, timeout, cwd=cwd, env=env)
+        finally:
+            if review_capture is not None:
+                try:
+                    review_capture.finish()
+                except (OSError, ValueError, TypeError) as error:
+                    self._review_gap("final", error)
+
+    def _run(self, command, prompt, timeout, *, cwd=None, env=None):
         # Stream to disk from process start: timeout/cancellation cannot discard
         # the useful prefix. Diagnostics stay private and out of chat output.
         with (self.path / "stdout.jsonl").open("wb") as stdout_file, termination_guard():
