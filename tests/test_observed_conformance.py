@@ -1,5 +1,6 @@
 """Frozen observed-action evaluator controls; no canned trace is model compliance."""
 import copy
+from functools import cache
 from contextlib import closing
 import hashlib
 import json
@@ -10,13 +11,33 @@ import sys
 import tempfile
 import unittest
 
-from foundation.conformance import load_cases, score, sensitivity
+from foundation.conformance import load_cases, score
 from foundation.conformance.controls import control_observation, sensitivity_score
 from foundation.conformance.evaluator import CASES_SHA256, FORBIDDEN_MUTATIONS, STATE_MUTATIONS
 from foundation.conformance.host import Host, initialize, files, executable_controls
 from foundation.conformance.runner import prompt_for, safe_env, verify_stream, stream_process
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@cache
+def conformance_run():
+    """Execute the real CLI once per test process, including failed outcomes."""
+    result = subprocess.run(
+        [sys.executable, '-B', '-m', 'foundation.conformance', '--check'],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    print(result.stdout, end='')
+    print(result.stderr, end='', file=sys.stderr)
+    return result
+
+
+def conformance_result():
+    result = conformance_run()
+    if result.returncode:
+        raise AssertionError(f'Conformance CLI exited {result.returncode}; see its captured output above')
+    # Parse independently so one test cannot mutate another test's result.
+    return json.loads(result.stdout)
 
 
 class HostEvidenceRegressionTests(unittest.TestCase):
@@ -384,7 +405,7 @@ class ObservedConformanceTests(unittest.TestCase):
                     self.assertFalse(r['model_compliance'])
 
     def test_sensitivity_accepts_controls_rejects_every_required_forbidden_order_state(self):
-        r = sensitivity(self.data)
+        r = conformance_result()
         self.assertEqual('pass', r['status'], r['failures'])
         self.assertEqual(47, r['variants'])
         self.assertFalse(r['model_compliance'])
@@ -1178,13 +1199,11 @@ class ClaimProjectionAndRetentionTests(unittest.TestCase):
 
 class RawChronologyRegressionTests(unittest.TestCase):
     def test_all_66_independently_fixed_raw_chronology_controls(self):
-        from foundation.conformance.chronology_controls import run_matrix
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_matrix(Path(tmp) / 'all-66')
-            self.assertEqual(66, result['controls'])
-            self.assertEqual(66, len({row['id'] for row in result['rows']}))
-            self.assertEqual([], result['failures'], result['failures'])
-            self.assertFalse(result['model_compliance'])
+        result = conformance_result()['chronology_sensitivity']
+        self.assertEqual(66, result['controls'])
+        self.assertEqual(66, len({row['id'] for row in result['rows']}))
+        self.assertEqual([], result['failures'], result['failures'])
+        self.assertFalse(result['model_compliance'])
 
     def test_native_command_journal_and_exact_utf8_decision_still_seal(self):
         from foundation.conformance.claim_review import artifact, protocol, seal_run, validate_manifest
@@ -1220,32 +1239,26 @@ if __name__ == '__main__':
 
 class TransitionMatrixRegressionTests(unittest.TestCase):
     def test_independent_ordering_timeout_matrix(self):
-        from foundation.conformance.transition_controls import run_transitions
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_transitions(Path(tmp) / "transitions")
-            self.assertEqual(result["controls"], 133)
-            self.assertEqual(result["failures"], [])
+        result = conformance_result()['transition_sensitivity']
+        self.assertEqual(result["controls"], 133)
+        self.assertEqual(result["failures"], [])
 
 
 class PredicateStateBoundaryRegressionTests(unittest.TestCase):
     def test_fixed_predicate_state_boundaries(self):
-        from foundation.conformance.state_controls import run_state_boundaries
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_state_boundaries(Path(tmp) / "states")
-            self.assertEqual(result["controls"], 20)
-            self.assertEqual(result["failures"], [])
+        result = conformance_result()['state_boundary_sensitivity']
+        self.assertEqual(result["controls"], 20)
+        self.assertEqual(result["failures"], [])
 
 
 class AuxiliaryCaptureBoundaryRegressionTests(unittest.TestCase):
     def test_fixed_capture_stages_and_review_transitions(self):
-        from foundation.conformance.capture_controls import run_capture_boundaries
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_capture_boundaries(Path(tmp) / 'capture')
-            self.assertEqual(60, result['controls'])
-            self.assertEqual(343, result['executed_review_combinations'])
-            self.assertEqual(77, result['conditional_review_combinations'])
-            self.assertEqual([], result['failures'], result['failures'])
-            self.assertFalse(result['model_compliance'])
+        result = conformance_result()['capture_boundary_sensitivity']
+        self.assertEqual(60, result['controls'])
+        self.assertEqual(343, result['executed_review_combinations'])
+        self.assertEqual(77, result['conditional_review_combinations'])
+        self.assertEqual([], result['failures'], result['failures'])
+        self.assertFalse(result['model_compliance'])
 
     def test_missing_state_does_not_erase_independent_file_effect_proof(self):
         from foundation.conformance.capture_controls import actual, SPECS
@@ -1303,15 +1316,13 @@ class SpecificEffectBoundaryRegressionTests(unittest.TestCase):
             self.assertIsNone(validate(changed))
 
     def test_fixed_effect_paths_and_capture_boundaries(self):
-        from foundation.conformance.effect_controls import run_effect_boundaries
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_effect_boundaries(Path(tmp) / 'effects')
-            self.assertEqual(44, result['controls'])
-            self.assertEqual(1, result['additional_subvariants'])
-            self.assertEqual(273, result['executed_review_combinations'])
-            self.assertEqual(42, result['conditional_review_combinations'])
-            self.assertEqual([], result['failures'], result['failures'])
-            self.assertFalse(result['model_compliance'])
+        result = conformance_result()['effect_boundary_sensitivity']
+        self.assertEqual(44, result['controls'])
+        self.assertEqual(1, result['additional_subvariants'])
+        self.assertEqual(273, result['executed_review_combinations'])
+        self.assertEqual(42, result['conditional_review_combinations'])
+        self.assertEqual([], result['failures'], result['failures'])
+        self.assertFalse(result['model_compliance'])
 
 
 class TransportEffectBoundaryRegressionTests(unittest.TestCase):
@@ -1337,15 +1348,13 @@ class TransportEffectBoundaryRegressionTests(unittest.TestCase):
             self.assertFalse(verify_stream(host.events, stream))
 
     def test_fixed_transport_effect_and_normal_exit_controls(self):
-        from foundation.conformance.transport_controls import run_transport_boundaries
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_transport_boundaries(Path(tmp) / 'transport')
-            self.assertEqual(26, result['controls'])
-            self.assertEqual(2, result['additional_subvariants'])
-            self.assertEqual(168, result['executed_review_combinations'])
-            self.assertEqual(28, result['conditional_review_combinations'])
-            self.assertEqual([], result['failures'], result['failures'])
-            self.assertFalse(result['model_compliance'])
+        result = conformance_result()['transport_boundary_sensitivity']
+        self.assertEqual(26, result['controls'])
+        self.assertEqual(2, result['additional_subvariants'])
+        self.assertEqual(168, result['executed_review_combinations'])
+        self.assertEqual(28, result['conditional_review_combinations'])
+        self.assertEqual([], result['failures'], result['failures'])
+        self.assertFalse(result['model_compliance'])
 
 
 class RequiredObligationCoverageRegressionTests(unittest.TestCase):

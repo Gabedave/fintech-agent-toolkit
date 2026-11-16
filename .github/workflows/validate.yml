@@ -22,7 +22,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: python3 scripts/check_foundation.py
-      - run: python3 -B -m foundation.conformance --check
       - run: python3 scripts/validate.py
       - run: python3 scripts/evaluate.py
       - run: python3 scripts/evaluate_behavior.py --check
