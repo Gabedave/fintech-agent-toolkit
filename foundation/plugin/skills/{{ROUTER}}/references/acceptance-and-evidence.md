@@ -36,7 +36,7 @@ Confirm the repository's required aggregate gate at the exact current PR head wi
 
 ## Evidence destination
 
-Put review-only reports, command results and privacy-safe captures in the authorized PR description/attachments and retain originals in local temporary or ignored storage through hosted verification. Maintained product documentation, runbooks, ADRs and intentional assets belong in normal source locations. Honor an explicit user storage exception within its exact scope. Keep private working notes and raw transcripts local; publishing code does not implicitly publish those artifacts.
+Put PR review evidence—test results, CI links, findings and remaining blockers—directly in the authorized PR description. Keep review-only reports, logs and captures out of commits and the PR diff; retain originals in local temporary or ignored storage through hosted verification. Link authorized privacy-safe hosted captures from the description. Without an available PR or permission to update it, include the review record in the handoff. Maintained product documentation, runbooks, ADRs and intentional assets belong in normal source locations. Honor an explicit user storage exception within its exact scope. Keep private working notes and raw transcripts local; publishing code does not implicitly publish those artifacts.
 
 Create comparison copies and temporary proof artifacts in a unique owned task directory. Establish ownership before replacing or removing an existing path; a convenient fixed temporary filename is not evidence that it is safe to overwrite. Retain any unknown prior-state or cleanup limit explicitly rather than claiming all unrelated state was preserved.
 
