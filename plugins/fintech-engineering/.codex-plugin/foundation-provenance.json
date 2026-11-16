@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "42024b09bf7c86f6ee339809eaf4239e987eca93",
+  "source_commit": "61753a422e668ae5913e1cd3b9a5ebe3abe6e0bb",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.43",
+  "plugin_version": "0.2.44",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.43",
-    "commit": "42024b09bf7c86f6ee339809eaf4239e987eca93",
-    "digest": "d33c7a18de808bc30c7c5e4ad830a0c0000bed8446ef7a8c37b8a7dc1fa493ba"
+    "version": "1.0.44",
+    "commit": "61753a422e668ae5913e1cd3b9a5ebe3abe6e0bb",
+    "digest": "5d8363df58e0797f8baec791116a0023e7f5fbbf59c2e0a1b3d257ec5b496cd6"
   },
   "adapter_revision": "1.0.11",
-  "profile_digest": "6c26f8dcc24293a5129e55234f1c85985f0a186c7610985b84d3b984ceac6fd9",
+  "profile_digest": "436542febabc18fa4402177a7ce33384d73f81a411e801d5bf3215fd3773541b",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "888e043efa3794275dfa0d24528912a7c6ae749d8f8912e90bc8f15e3280e4d4",
+      "sha256": "bff4de8c918913a7f0e23cdb63a3a9c82083e9c8892e92d0e3a0e8a6e97d1a95",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -58,7 +58,7 @@
       "mode": "0644"
     },
     "skills/ci-babysit/SKILL.md": {
-      "sha256": "d852f49ad4680fd157857a3c0b0f743b5079ee662f9796ceccad026e6866c517",
+      "sha256": "36df6bb04a200a44b3d35bb2bd6323967d2eaa14208aeefbd9f3c5967743564a",
       "mode": "0644"
     },
     "skills/ci-babysit/agents/openai.yaml": {
@@ -78,7 +78,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/references/acceptance-and-evidence.md": {
-      "sha256": "908b4c8cb117a20236350336fa1261ac1ef9c4fe261b704bbf460ecb1200e7c8",
+      "sha256": "348bd4123325a4c25a90d73b118ac8b8dbe83b7aea1c7ce6f6b1fe822a3c2180",
       "mode": "0644"
     },
     "skills/fintech-mode/references/implementation-readiness.md": {
@@ -170,7 +170,7 @@
       "mode": "0644"
     },
     "skills/pre-push-review/SKILL.md": {
-      "sha256": "83044b4e03f5f3d605126d0f2e4e3e9686338e9c622ccb4452a84ea74fda517e",
+      "sha256": "374818f9deb4a875d7be135af29f2658ec0281c7f2d8e9a42350e393bfdc48ae",
       "mode": "0644"
     },
     "skills/pre-push-review/agents/openai.yaml": {
@@ -230,5 +230,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "d9b55464bc643cbd0fafe1c8a3921d044e2b37bde6f3aa20a47964d27fff563b"
+  "content_digest": "9e761c5d4313e575ccb82c694186c34c87be9dd6813fc8ea2229cbe82f999f29"
 }

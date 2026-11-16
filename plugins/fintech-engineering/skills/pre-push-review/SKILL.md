@@ -40,4 +40,4 @@ For an authorized push, this skill owns the single synthetic-merge check. Follow
 
 For toolkit plugin-behavior or review-gate/evaluator changes, read [toolkit verification](references/toolkit-verification.md) before selecting checks. Its full installed-candidate and applicable review-quality gates remain mandatory before team-ready or release claims.
 
-Use the protocol's compact review record, expanding high-risk or repaired reviews rather than omitting their evidence. End with exactly one status: `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.
+Use the protocol's compact review record, expanding high-risk or repaired reviews rather than omitting their evidence. Place that record according to [evidence destination](../fintech-mode/references/acceptance-and-evidence.md#evidence-destination). End with exactly one status: `STATUS: READY FOR TEAM REVIEW`, `STATUS: NOT READY FOR TEAM REVIEW`, or `STATUS: REVIEW INCOMPLETE`.

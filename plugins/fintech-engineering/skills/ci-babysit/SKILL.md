@@ -40,7 +40,7 @@ Group related results rather than repeating the full check inventory on each pol
 Continue verification while the state is unchanged. Respect higher-priority communication cadence
 and explicit user requests; a necessary waiting check-in is one brief line without the unchanged inventory.
 Finish with one consolidated account of what passed, what remains unresolved, and the human action needed.
-These reporting rules do not change check requirements, exact-head tracking, or CI follow-through.
+These reporting rules do not change check requirements, exact-head tracking, or CI follow-through. For authorized PR description updates, follow [evidence destination](../fintech-mode/references/acceptance-and-evidence.md#evidence-destination).
 
 ## Repair when authorized
 
