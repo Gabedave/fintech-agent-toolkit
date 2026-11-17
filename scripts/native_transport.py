@@ -28,7 +28,10 @@ def parse_final_result(raw):
     def nonfinite(value):
         raise InvalidFinalResult('nonfinite final JSON value: ' + value)
 
-    return json.loads(raw, object_pairs_hook=unique, parse_constant=nonfinite)
+    result = json.loads(raw, object_pairs_hook=unique, parse_constant=nonfinite)
+    if not isinstance(result, dict):
+        raise InvalidFinalResult("final JSON result must be an object")
+    return result
 
 
 def validate_schema(schema):

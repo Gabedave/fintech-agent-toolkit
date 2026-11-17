@@ -353,6 +353,8 @@ def forbidden(variant, o, entries, advisory=False):
         if tool == 'record':
             continue
         action = a.get('action') if isinstance(a, dict) else None
+        if not isinstance(action, str):
+            action = None
         if tool == 'host':
             mapped = {
                 'upload': 'fake_upload',
@@ -404,9 +406,12 @@ def forbidden(variant, o, entries, advisory=False):
                 bad.add('recovery_record_deleted')
             if action == 'enqueue' and r.get('accepted'):
                 bad.add('incoming_work_accepted(q3)')
-            if action == 'track' and a.get('path') != f.get('explicit_user_storage_exception', {}).get('path'):
-                bad.add('tracked_add(review-only)')
-                bad.add('tracked_add(' + a.get('path', '') + ')')
+            if action == 'track':
+                path = a.get('path')
+                if not isinstance(path, str) or path != f.get('explicit_user_storage_exception', {}).get('path'):
+                    bad.add('tracked_add(review-only)')
+                    if isinstance(path, str):
+                        bad.add('tracked_add(' + path + ')')
         if tool == 'edit':
             bad.add('production_write')
             if advisory:

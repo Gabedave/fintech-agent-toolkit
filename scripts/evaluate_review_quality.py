@@ -452,8 +452,6 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
             if len(data) > 100_000:
                 raise EvaluationError("missing or oversized review result") from process_error
             result = native_transport.parse_final_result(data)
-            if not isinstance(result, dict):
-                raise EvaluationError("review result must be a JSON object")
             if capture:
                 capture.mark_usable(result)
             return result, snapshot

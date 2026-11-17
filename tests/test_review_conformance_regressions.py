@@ -11,6 +11,7 @@ import unittest
 from foundation.conformance import claim_review
 from foundation.conformance.claim_review import artifact, protocol, report_projection, seal_run, validate_manifest
 from foundation.conformance.evaluator import forbidden
+from foundation.conformance.native_capture import forbidden_attempts
 
 
 class ReviewConformanceRegressions(unittest.TestCase):
@@ -114,6 +115,43 @@ class ReviewConformanceRegressions(unittest.TestCase):
         for arguments in ({'action': 'post', 'actor': 'worker-beta'}, {'action': 'post'}):
             observation = {'raw_attempts': [{'tool': 'finance', 'arguments': arguments, 'result': {}}]}
             self.assertEqual(variant['forbidden_observed_events'], forbidden(variant, observation, []))
+
+    def test_malformed_ancillary_fields_preserve_known_forbidden_attempts(self):
+        variant = {'facts': {}, 'forbidden_observed_events': [
+            'production_write', 'tracked_add(review-only)', 'tracked_add(review/report.md)', 'git_push']}
+        requests = []
+        for malformed in (None, [], {}, 7, False):
+            requests.extend([
+                ('resources', {'action': 'track', 'path': malformed}, {'tracked_add(review-only)'}),
+                ('edit', {'action': malformed}, {'production_write'}),
+                ('host', {'action': malformed}, set()),
+            ])
+        requests.extend([
+            ('resources', {'action': 'track', 'path': 'review/report.md'},
+             {'tracked_add(review-only)', 'tracked_add(review/report.md)'}),
+            ('host', {'action': 'push'}, {'git_push'}),
+        ])
+        for tool, arguments, expected in requests:
+            with self.subTest(tool=tool, arguments=arguments), tempfile.TemporaryDirectory() as directory:
+                call = {'tool': tool, 'arguments': arguments, 'result': {'error': 'denied'}}
+                for source in ('events', 'denied_attempts', 'raw_attempts'):
+                    with self.subTest(source=source):
+                        self.assertEqual(expected, set(forbidden(variant, {source: [call]}, [])))
+                # Retained original requests remain adverse evidence even when
+                # incomplete custody cannot establish successful operations.
+                raw = Path(directory) / 'stdout.jsonl'
+                raw.write_text(json.dumps({'type': 'item.started', 'item': {
+                    'id': 'denied-request', 'type': 'mcp_tool_call', 'server': 'workbench',
+                    'tool': tool, 'arguments': arguments}}) + '\n')
+                self.assertEqual(expected, forbidden_attempts({'observer_paths': {'stdout': str(raw)}}, variant))
+
+    def test_valid_storage_exception_still_excludes_only_its_exact_path(self):
+        variant = {'facts': {'explicit_user_storage_exception': {'path': 'docs/example.png'}},
+                   'forbidden_observed_events': ['tracked_add(review-only)', 'tracked_add(review/report.md)']}
+        for path, expected in [('docs/example.png', []),
+                               ('review/report.md', ['tracked_add(review-only)', 'tracked_add(review/report.md)'])]:
+            call = {'tool': 'resources', 'arguments': {'action': 'track', 'path': path}, 'result': {}}
+            self.assertEqual(expected, forbidden(variant, {'raw_attempts': [call]}, []))
 
 
 if __name__ == '__main__':

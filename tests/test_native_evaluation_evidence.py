@@ -199,10 +199,11 @@ class RetainedResultBindingTests(unittest.TestCase):
                                          None, 5, evidence_dir=evidence_dir)
         return review.run_review(review.load_suite()[0], "broken", 5, evidence_dir=evidence_dir)[0]
 
-    def test_ambiguous_final_json_is_terminal_without_replacement(self):
+    def test_invalid_final_json_is_terminal_without_replacement(self):
         payloads = (b'{"playbook":"bug-fix","playbook":"none"}',
                     b'{"nested":[{"decision":1,"decision":2}]}',
-                    b'{"value":NaN}', b'{"value":Infinity}', b'{"value":-Infinity}')
+                    b'{"value":NaN}', b'{"value":Infinity}', b'{"value":-Infinity}',
+                    b'[]', b'null', b'"decision"', b'42', b'true')
         for kind in ("behavior", "review"):
             for ending in ("succeeded", "nonzero", "timed_out"):
                 for raw in payloads:
@@ -348,7 +349,9 @@ class RetainedResultBindingTests(unittest.TestCase):
                 def replace(attempt):
                     attempt.output.write_text('{}')
                 with self.captured_cli(raw, after_capture=replace) as attempts:
-                    with self.assertRaises((behavior.BehaviorEvaluationError, review.EvaluationError)):
+                    expected = (behavior.native_transport.InvalidFinalResult if raw == b'[]'
+                                else (behavior.BehaviorEvaluationError, review.EvaluationError))
+                    with self.assertRaises(expected):
                         self.invoke(kind, root, run)
                 self.assertFalse((attempts[0].path / "result-status.json").exists())
 

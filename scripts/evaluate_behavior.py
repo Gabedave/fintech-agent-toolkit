@@ -128,10 +128,6 @@ def read_structured_result(output: Path, scenario_id: str, *, capture=None) -> d
         raise BehaviorEvaluationError(
             f"{scenario_id}: cannot read structured result: {error}"
         ) from error
-    if not isinstance(result, dict):
-        raise BehaviorEvaluationError(
-            f"{scenario_id}: structured result must be a JSON object"
-        )
     if capture:
         try:
             capture.mark_usable(result)
