@@ -1,21 +1,21 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "405aedd0beccaeedeb5e65a90de37f072bc018db",
+  "source_commit": "91b04007c31f72265e1a183148687761f1f70cbe",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.45",
+  "plugin_version": "0.2.46",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.45",
-    "commit": "405aedd0beccaeedeb5e65a90de37f072bc018db",
-    "digest": "4e0069e87c176acf7ff49d50368cef99e93db7dba65db390acec24166400e254",
+    "version": "1.0.46",
+    "commit": "91b04007c31f72265e1a183148687761f1f70cbe",
+    "digest": "471d35e3aa027f267c16a81ffc5e830b5e2e116c5cf53c7dfca1f8b93c643154",
     "digest_scope": "plugin-build-v1"
   },
-  "adapter_revision": "1.0.12",
-  "profile_digest": "e8ab5a195c2d43e7aa20d83f17ba42bc9b8e4ca158f83e418de364181b92961b",
+  "adapter_revision": "1.0.13",
+  "profile_digest": "d2af656997f525712db1c7f1af3cec625b43dee1fba23023c800ad121d73997e",
   "content_files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "4d6c37ade25b92d4774509060cd8ed006da84a863b309b57d1da2be0506d88a2",
+      "sha256": "bc882806bc2c4aeba47a1dec6a392cd0e8d2823d3f172739d4154155c2772121",
       "mode": "0644"
     },
     "scripts/verify_merge_candidate.py": {
@@ -139,7 +139,7 @@
       "mode": "0644"
     },
     "skills/fintech-mode/references/routing-contract.json": {
-      "sha256": "be35b6e209b184e76657d40fbacddc15b06a36891e75341cfd970cfbab2fcac9",
+      "sha256": "b73840b3d2888319184cdc0ed7ca69c56e6dfed4b0a05b0fdea7f22f3e712e92",
       "mode": "0644"
     },
     "skills/fintech-mode/references/ui-verification.md": {
@@ -231,5 +231,5 @@
       "mode": "0644"
     }
   },
-  "content_digest": "c379be0211e8d0d2ad50412f14fc2719ddeb85adb63384ef865c68bb95cac4fa"
+  "content_digest": "e1e756996d1a82474302dd1602f94cbda8514d384f35573918dad63cf77f2d47"
 }

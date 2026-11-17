@@ -1,30 +1,30 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "405aedd0beccaeedeb5e65a90de37f072bc018db",
+  "source_commit": "91b04007c31f72265e1a183148687761f1f70cbe",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.45",
+  "plugin_version": "0.2.46",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.45",
-    "commit": "405aedd0beccaeedeb5e65a90de37f072bc018db",
-    "digest": "4e0069e87c176acf7ff49d50368cef99e93db7dba65db390acec24166400e254",
+    "version": "1.0.46",
+    "commit": "91b04007c31f72265e1a183148687761f1f70cbe",
+    "digest": "471d35e3aa027f267c16a81ffc5e830b5e2e116c5cf53c7dfca1f8b93c643154",
     "digest_scope": "plugin-build-v1"
   },
-  "adapter_revision": "1.0.12",
-  "profile_digest": "e8ab5a195c2d43e7aa20d83f17ba42bc9b8e4ca158f83e418de364181b92961b",
-  "generated_tree_digest": "da34dd60e9bfcd2420dd590828324050439e7947e30d964e0c5d565736e13b6f",
+  "adapter_revision": "1.0.13",
+  "profile_digest": "d2af656997f525712db1c7f1af3cec625b43dee1fba23023c800ad121d73997e",
+  "generated_tree_digest": "4f7a390352f0cba18364f9fab0f977c6e3d3607ded86d258806c9e1aeea9df94",
   "files": {
     ".agents/plugins/marketplace.json": {
       "sha256": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": {
-      "sha256": "4f34bbcc54a36e9096feed5ef7a6a900633fc54a69d12d2ed1a35566b22b7421",
+      "sha256": "2f2a2b15a6fbf0caaea26082bd216e14adb86d31f72e8558bd15494085391732",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/plugin.json": {
-      "sha256": "4d6c37ade25b92d4774509060cd8ed006da84a863b309b57d1da2be0506d88a2",
+      "sha256": "bc882806bc2c4aeba47a1dec6a392cd0e8d2823d3f172739d4154155c2772121",
       "mode": "0644"
     },
     "plugins/fintech-engineering/scripts/verify_merge_candidate.py": {
@@ -148,7 +148,7 @@
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/fintech-mode/references/routing-contract.json": {
-      "sha256": "be35b6e209b184e76657d40fbacddc15b06a36891e75341cfd970cfbab2fcac9",
+      "sha256": "b73840b3d2888319184cdc0ed7ca69c56e6dfed4b0a05b0fdea7f22f3e712e92",
       "mode": "0644"
     },
     "plugins/fintech-engineering/skills/fintech-mode/references/ui-verification.md": {

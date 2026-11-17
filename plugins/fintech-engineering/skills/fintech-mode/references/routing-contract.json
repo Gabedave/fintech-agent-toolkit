@@ -60,6 +60,7 @@
   ],
   "status_only": {
     "playbook": "investigation",
+    "monitoring_playbook": "long-running",
     "allowed_signals": [
       "pull_request_followthrough",
       "long_running_or_handoff"
