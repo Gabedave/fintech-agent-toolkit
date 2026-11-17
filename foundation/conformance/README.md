@@ -11,7 +11,14 @@ earlier run. Keep build and verification source pins distinct when only tests ch
 ## Ordinary native read-only capture
 
 `native_capture.prepare_read_only(...)` prepares a fresh owned fixture and neutral
-read snapshots outside the candidate. It preserves the original task/facts and
+read snapshots outside the candidate. Preparation and `import_capture(...)`
+(including the runner wrapper) require `candidate=/absolute/adopter/checkout`;
+the external harness checkout is not the candidate. Both reject output inside
+either source tree, including resolved path aliases. New preparations record
+that candidate root and imports reject a different candidate before writing.
+Historical preparations without this field remain readable with an explicit
+candidate argument; their original bytes are retained without adding the field.
+It preserves the original task/facts and
 uses the existing `Host._call('inspect', ...)` read meanings without invoking
 the MCP journal/state-writing wrapper. Transport files live outside the original
 workspace inventory. Only the companion is a decision-only experiment; observed

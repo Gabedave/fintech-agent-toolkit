@@ -21,6 +21,8 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.candidate = self.root / 'candidate'
+        self.candidate.mkdir()
         self.installed = self.root / 'installed'
         router = self.installed / 'skills/sample-mode/SKILL.md'
         router.parent.mkdir(parents=True)
@@ -33,7 +35,7 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.variant = self.case['variants'][0]
         self.capture_count = 0
         self.prepared = prepare_read_only(self.root / 'run', self.case, self.variant,
-                                          self.profile, self.installed)
+                                          self.profile, self.installed, candidate=self.candidate)
 
     def capture(self, change=None, custody_change=None, missing_parent=False, decision=None):
         self.capture_count += 1
@@ -71,7 +73,7 @@ class NativeReadCaptureTests(unittest.TestCase):
                   'source_after': {p: r['sha256'] for p, r in plan['sources'].items()}}
         if custody_change:
             custody_change(parent)
-        kwargs = {}
+        kwargs = {'candidate': self.candidate}
         if decision is not None:
             decision_path = self.root / 'original-decision.json'
             decision_path.write_text(json.dumps(decision))
@@ -108,7 +110,7 @@ class NativeReadCaptureTests(unittest.TestCase):
             with self.subTest(variant=variant['id']):
                 self.variant = variant
                 self.prepared = prepare_read_only(self.root / variant['id'], self.case,
-                    variant, self.profile, self.installed)
+                    variant, self.profile, self.installed, candidate=self.candidate)
                 plan = json.loads(self.prepared.read_bytes())
                 prompt = Path(plan['prompt_path']).read_text()
                 self.assertIn('Original task:\n' + variant['task'] + '\nOriginal neutral facts:', prompt)
@@ -124,7 +126,7 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.case = next(case for case in cases if case['id'] == '06-review-evidence')
         self.variant = next(v for v in self.case['variants'] if v['id'] == 'compliant-verified-reuse')
         self.prepared = prepare_read_only(self.root / 'old-task', self.case, self.variant,
-                                          self.profile, self.installed)
+                                          self.profile, self.installed, candidate=self.candidate)
         plan = json.loads(self.prepared.read_bytes())
         plan['task_sha256'] = sha(self.case['task'].encode())
         self.prepared.write_text(json.dumps(plan))
@@ -140,7 +142,7 @@ class NativeReadCaptureTests(unittest.TestCase):
         variant['task'] = 'Unapproved task override.'
         output = self.root / 'unapproved'
         with self.assertRaises(ValueError):
-            prepare_read_only(output, case, variant, self.profile, self.installed)
+            prepare_read_only(output, case, variant, self.profile, self.installed, candidate=self.candidate)
         self.assertFalse(output.exists())
 
     def test_actual_literal_reads_retain_complete_reports_without_granting_semantics(self):
@@ -256,7 +258,7 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.case = load_cases()['cases'][11]
         self.variant = self.case['variants'][1]
         self.prepared = prepare_read_only(self.root / 'no-push', self.case, self.variant,
-                                          self.profile, self.installed)
+                                          self.profile, self.installed, candidate=self.candidate)
         def denied_push(events):
             events[2]['item']['command'] = 'git push origin HEAD'
             events[3]['item'].update(command='git push origin HEAD', status='failed', exit_code=1,
@@ -272,7 +274,7 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.variant = copy.deepcopy(self.case['variants'][1])
         self.variant['facts']['harness_history'] = ['Prior recorded git push origin HEAD; historical data only.']
         self.prepared = prepare_read_only(self.root / 'history-only', self.case, self.variant,
-                                          self.profile, self.installed)
+                                          self.profile, self.installed, candidate=self.candidate)
         observation = self.capture()
         self.assertIn('git push', Path(json.loads(self.prepared.read_text())['resources']['history']).read_text())
         result = score(self.case, self.variant, observation)
@@ -340,7 +342,7 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.case = load_cases()['cases'][11]
         self.variant = self.case['variants'][1]
         self.prepared = prepare_read_only(self.root / 'global-option-push', self.case, self.variant,
-                                          self.profile, self.installed)
+                                          self.profile, self.installed, candidate=self.candidate)
         for prefix in ('git -C /repo', 'git -c core.foo=bar',
                        'git --git-dir=/repo/.git --work-tree=/repo',
                        'git --git-dir /repo/.git --work-tree /repo',
@@ -388,7 +390,7 @@ class NativeReadCaptureTests(unittest.TestCase):
     def test_companion_decision_only_scope_is_explicit_and_schema_is_supplied(self):
         schema = {'type': 'object', 'properties': {'neutral': {'type': 'string'}}}
         prepared = prepare_read_only(self.root / 'companion', self.case, self.variant,
-                                     self.profile, self.installed, companion=True, decision_schema=schema)
+                                     self.profile, self.installed, candidate=self.candidate, companion=True, decision_schema=schema)
         plan = json.loads(prepared.read_text())
         self.assertIn('implementation task is scenario data', Path(plan['prompt_path']).read_text())
         self.assertEqual(schema, json.loads(Path(plan['decision_schema']['path']).read_text()))
@@ -641,7 +643,7 @@ class CompanionEvidenceRegressionTests(unittest.TestCase):
             'Historical recorded request: {"server":"workbench","tool":"host","arguments":{"action":"push"}}']
         self.control.prepared = prepare_read_only(
             self.control.root / 'companion', self.control.case, self.control.variant,
-            self.control.profile, self.control.installed, companion=True,
+            self.control.profile, self.control.installed, candidate=self.control.candidate, companion=True,
             decision_schema={'type': 'object', 'properties': {'decision': {'type': 'string'}}})
         self.plan = json.loads(self.control.prepared.read_bytes())
         self.policy = self.plan['required_reads'][1]
@@ -971,7 +973,7 @@ class CompanionEvidenceRegressionTests(unittest.TestCase):
                         (case, variant) for case in load_cases()['cases'] for variant in case['variants']
                         if 'git_push' in variant['forbidden_observed_events'])
                     control.prepared = prepare_read_only(control.root / 'public-score',
-                        control.case, control.variant, control.profile, control.installed)
+                        control.case, control.variant, control.profile, control.installed, candidate=control.candidate)
                     def request(events):
                         events[7:7] = [copy.deepcopy(bad_row), {'type': 'item.updated', 'item': {
                             'id': 'known-push', 'type': 'mcp_tool_call', 'server': 'workbench',
@@ -983,6 +985,78 @@ class CompanionEvidenceRegressionTests(unittest.TestCase):
                     self.assertEqual([], observation['events'])
                 finally:
                     control.doCleanups()
+
+class NativeCapturePlacementTests(unittest.TestCase):
+    def setUp(self):
+        self.control = NativeReadCaptureTests()
+        self.control.setUp()
+        self.addCleanup(self.control.doCleanups)
+
+    def protected_outputs(self):
+        from foundation.conformance import native_capture
+        candidate = self.control.candidate
+        harness = Path(native_capture.__file__).resolve().parents[2]
+        alias = self.control.root / 'candidate-alias'
+        alias.symlink_to(candidate, target_is_directory=True)
+        harness_alias = self.control.root / 'harness-alias'
+        harness_alias.symlink_to(harness, target_is_directory=True)
+        return (candidate, candidate / 'capture', alias / 'capture',
+                harness, harness / '.native-placement-rejected',
+                harness_alias / '.native-placement-rejected')
+
+    def test_preparation_rejects_adopter_harness_and_aliases_before_writes(self):
+        c = self.control
+        for output in self.protected_outputs():
+            with self.subTest(output=output):
+                existed = output.exists()
+                with self.assertRaisesRegex(ValueError, 'outside candidate and harness'):
+                    prepare_read_only(output, c.case, c.variant, c.profile, c.installed,
+                                      candidate=c.candidate)
+                self.assertEqual(existed, output.exists())
+        self.assertEqual([], list(c.candidate.iterdir()))
+
+    def test_import_rejects_adopter_harness_and_aliases_before_writes(self):
+        c = self.control
+        for output in self.protected_outputs():
+            with self.subTest(output=output):
+                existed = output.exists()
+                with self.assertRaisesRegex(ValueError, 'outside candidate and harness'):
+                    import_capture(c.prepared, c.root / 'missing-raw', None, output,
+                                   candidate=c.candidate)
+                self.assertEqual(existed, output.exists())
+        self.assertEqual([], list(c.candidate.iterdir()))
+
+    def test_new_plan_binds_actual_candidate_and_mismatch_creates_nothing(self):
+        c = self.control
+        self.assertEqual(str(c.candidate.resolve()), json.loads(c.prepared.read_text())['candidate_root'])
+        other = c.root / 'other-candidate'
+        other.mkdir()
+        output = c.root / 'mismatched-import'
+        with self.assertRaisesRegex(ValueError, 'prepared candidate'):
+            import_capture(c.prepared, c.root / 'missing-raw', None, output, candidate=other)
+        self.assertFalse(output.exists())
+
+    def test_explicit_candidate_required_for_preparation_and_import(self):
+        c = self.control
+        output = c.root / 'missing-candidate'
+        with self.assertRaises(TypeError):
+            prepare_read_only(output, c.case, c.variant, c.profile, c.installed)
+        with self.assertRaises(TypeError):
+            import_capture(c.prepared, c.root / 'missing-raw', None, output)
+        self.assertFalse(output.exists())
+
+    def test_historical_plan_without_candidate_is_retained_and_readable(self):
+        c = self.control
+        plan = json.loads(c.prepared.read_text())
+        del plan['candidate_root']
+        historical = (json.dumps(plan, indent=2) + '\n').encode()
+        c.prepared.write_bytes(historical)
+        observation = c.capture()
+        self.assertEqual('verified-subset', validate_capture(observation)['status'])
+        self.assertEqual(historical, Path(observation['observer_paths']['prepared']).read_bytes())
+        self.assertEqual(historical, c.prepared.read_bytes())
+        self.assertNotIn('candidate_root', json.loads(historical))
+
 
 if __name__ == '__main__':
     unittest.main()

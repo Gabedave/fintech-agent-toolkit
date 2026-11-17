@@ -61,7 +61,15 @@ def _sources(roots):
     return result
 
 
-def prepare_read_only(output, case, variant, profile, installed, *, companion=False, decision_schema=None):
+def _external_output(output, candidate):
+    root, candidate = Path(output).resolve(), Path(candidate).resolve()
+    harness = Path(__file__).resolve().parents[2]
+    if any(root == source or source in root.parents for source in (candidate, harness)):
+        raise ValueError('native evidence must remain outside candidate and harness source')
+    return root, candidate
+
+
+def prepare_read_only(output, case, variant, profile, installed, *, candidate, companion=False, decision_schema=None):
     """Materialize original neutral facts and real Host-equivalent read values.
 
     Controller case/variant identity stays under observer/, outside workspace and
@@ -71,10 +79,8 @@ def prepare_read_only(output, case, variant, profile, installed, *, companion=Fa
     from .host import Host, initialize, files
     from .runner import tree_hash
     task = variant_task(case, variant)
-    root, installed = Path(output).resolve(), Path(installed).resolve()
-    candidate = Path(__file__).resolve().parents[2]
-    if root == candidate or candidate in root.parents:
-        raise ValueError('native evidence must remain outside candidate source')
+    root, candidate = _external_output(output, candidate)
+    installed = Path(installed).resolve()
     if root.exists():
         raise ValueError('fresh preparation directory required')
     root.mkdir(parents=True)
@@ -155,6 +161,7 @@ def prepare_read_only(output, case, variant, profile, installed, *, companion=Fa
         target.chmod(stat.S_IMODE((source_root / name).stat().st_mode))
         copies[name] = _file(target)
     plan = {'transport': TRANSPORT, 'workspace': str(workspace), 'installed': str(installed),
+            'candidate_root': str(candidate),
             'controller_case_id': case['id'], 'controller_variant_id': variant['id'],
             'task_sha256': sha(task.encode()),
             'facts_sha256': sha(json.dumps(variant['facts'], sort_keys=True, separators=(',', ':')).encode()),
@@ -239,19 +246,20 @@ def _read_parent(value):
     return raw, parent, errors
 
 
-def import_capture(prepared, raw_path, parent_record, output, *, metadata_path=None, decision_path=None):
+def import_capture(prepared, raw_path, parent_record, output, *, candidate, metadata_path=None, decision_path=None):
     """Import completed ordinary-tool artifacts; never execute a model or command.
 
     The parent must independently retain/authenticate its complete before/after
     inventories and launch receipt. Missing premises are retained as unknown.
     No final state, operation, denial, model or catalog identity is invented.
     """
-    root = Path(output).resolve()
-    candidate = Path(__file__).resolve().parents[2]
-    if root == candidate or candidate in root.parents:
-        raise ValueError('native evidence must remain outside candidate source')
+    root, candidate = _external_output(output, candidate)
     if root.exists():
         raise ValueError('fresh import directory required; preserve prior result')
+    plan_raw = Path(prepared).read_bytes()
+    plan = json.loads(plan_raw, object_pairs_hook=native_reads._unique)
+    if 'candidate_root' in plan and plan['candidate_root'] != str(candidate):
+        raise ValueError('prepared candidate differs from explicitly supplied candidate')
     root.mkdir(parents=True)
     observer = root / 'observer'
     observer.mkdir()
@@ -262,8 +270,6 @@ def import_capture(prepared, raw_path, parent_record, output, *, metadata_path=N
                                          'reports': reports, 'attempts': attempts})
     parent_raw, parent, parent_errors = _read_parent(parent_record)
     (observer / 'parent-capture.json').write_bytes(parent_raw)
-    plan_raw = Path(prepared).read_bytes()
-    plan = json.loads(plan_raw, object_pairs_hook=native_reads._unique)
     (observer / 'prepared.json').write_bytes(plan_raw)
     # A truthful selection of original native command rows, not an MCP journal.
     lines = raw.splitlines(keepends=True)
