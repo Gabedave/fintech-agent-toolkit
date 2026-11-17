@@ -1,29 +1,30 @@
 {
   "schema_version": 2,
   "canonical_repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-  "source_commit": "61753a422e668ae5913e1cd3b9a5ebe3abe6e0bb",
+  "source_commit": "405aedd0beccaeedeb5e65a90de37f072bc018db",
   "plugin_name": "fintech-engineering",
-  "plugin_version": "0.2.44",
+  "plugin_version": "0.2.45",
   "foundation": {
     "repository": "https://github.com/Gabedave/fintech-agent-toolkit",
-    "version": "1.0.44",
-    "commit": "61753a422e668ae5913e1cd3b9a5ebe3abe6e0bb",
-    "digest": "5d8363df58e0797f8baec791116a0023e7f5fbbf59c2e0a1b3d257ec5b496cd6"
+    "version": "1.0.45",
+    "commit": "405aedd0beccaeedeb5e65a90de37f072bc018db",
+    "digest": "4e0069e87c176acf7ff49d50368cef99e93db7dba65db390acec24166400e254",
+    "digest_scope": "plugin-build-v1"
   },
-  "adapter_revision": "1.0.11",
-  "profile_digest": "436542febabc18fa4402177a7ce33384d73f81a411e801d5bf3215fd3773541b",
-  "generated_tree_digest": "eae559518d00dea9d9ea922fd192d3fc316b488a337fef3a7362a4f4d9cad569",
+  "adapter_revision": "1.0.12",
+  "profile_digest": "e8ab5a195c2d43e7aa20d83f17ba42bc9b8e4ca158f83e418de364181b92961b",
+  "generated_tree_digest": "da34dd60e9bfcd2420dd590828324050439e7947e30d964e0c5d565736e13b6f",
   "files": {
     ".agents/plugins/marketplace.json": {
       "sha256": "6b2f8be054345f2ab21ba10bccc7e1116380ee0c72a6bb8fd66231ba958552a9",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/foundation-provenance.json": {
-      "sha256": "00d698b53a69e99acad068771f4d06a1a462892846102da038cf13979ea46a71",
+      "sha256": "4f34bbcc54a36e9096feed5ef7a6a900633fc54a69d12d2ed1a35566b22b7421",
       "mode": "0644"
     },
     "plugins/fintech-engineering/.codex-plugin/plugin.json": {
-      "sha256": "bff4de8c918913a7f0e23cdb63a3a9c82083e9c8892e92d0e3a0e8a6e97d1a95",
+      "sha256": "4d6c37ade25b92d4774509060cd8ed006da84a863b309b57d1da2be0506d88a2",
       "mode": "0644"
     },
     "plugins/fintech-engineering/scripts/verify_merge_candidate.py": {

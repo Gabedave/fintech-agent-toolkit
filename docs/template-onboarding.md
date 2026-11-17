@@ -1,7 +1,9 @@
 # Adopt the shared engineering foundation
 
 A company can render a native plugin offline from a reviewed, pinned copy of this
-repository. `profiles/example.json` is a fictitious Harbor Example adapter. It
+repository. Adopters can keep this checkout outside their own repository and
+retain only their profile, generated plugin and provenance; vendoring the shared
+harness and its tests is optional. `profiles/example.json` is a fictitious Harbor Example adapter. It
 requires no company repositories, credentials, services, or tools. Its discovery
 paths are unverified hints; the example is not evidence that a company has adopted
 the workflow.
@@ -47,9 +49,12 @@ separate clean directories and compare complete bytes and modes before adopting 
 new pin.
 
 `--source-commit` identifies the **foundation source**, not the later generated
-candidate's Git commit. The lock binds that declared pin to a digest of every
-foundation source file's bytes and mode, including the conformance harness and
-fixtures (Python bytecode caches are excluded). Only exact file modes `0644` and
+candidate's Git commit. The `plugin-build-v1` foundation digest binds the build
+sources and plugin templates, excluding conformance and Python bytecode caches.
+Historical digests without that scope marker retain their whole-foundation meaning.
+Verification separately binds the harness and fixtures by exact source pin and
+per-run byte/mode maps. A test-only update can advance the verification pin without
+changing installed plugin provenance. Only exact file modes `0644` and
 `0755` are supported; other permission or special bits are rejected. Executable
 helpers retain their source `0755` mode. Generated marketplace, provenance, and
 root-lock metadata use `0644`. The renderer cannot establish that an arbitrary

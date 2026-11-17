@@ -8,7 +8,7 @@ This is a company-neutral adaptation of a private fintech engineering toolkit. I
 
 `foundation/` owns the shared skill bodies, helpers, renderer and conformance corpus. `profiles/gabedave.json` produces this plugin; `profiles/example.json` is a fictitious company starting point. Generated native plugins remain self-contained. See [company onboarding](docs/template-onboarding.md) and the [foundation decision](docs/decisions/2026-10-18-pinned-fintech-foundation.md).
 
-The lock pins the foundation commit/version/content digest and company profile. Compare installed bytes and fresh-task identity separately; changing source does not update an active installation. Model decision records and deterministic evaluator controls do not prove that workflow actions occurred. Product CI enforcement remains a separate integration.
+The lock pins the foundation build commit/version/content digest and company profile. Conformance has a separate verification identity, so test-only changes need not alter installed plugin provenance. Adopters can consume a pinned external checkout instead of vendoring the shared source and tests. Compare installed bytes and fresh-task identity separately; changing source does not update an active installation. Model decision records and deterministic evaluator controls do not prove that workflow actions occurred. Product CI enforcement remains a separate integration.
 
 ## Install
 
