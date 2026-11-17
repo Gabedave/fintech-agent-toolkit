@@ -1,16 +1,46 @@
 #!/usr/bin/env python3
 
+# Use only built-in/frozen modules until executable source trees are checked.
+import os
+import sys
+
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+    sys.pycache_prefix = None
+    _root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    def _source_walk_error(error):
+        raise SystemExit("ERROR: source-only verification cannot inspect source tree: " + str(error))
+    for _folder in ('scripts', 'foundation', 'tests/review-quality'):
+        _tree = os.path.join(_root, _folder)
+        _parent = _tree
+        while _parent != _root:
+            if os.path.islink(_parent):
+                raise SystemExit("ERROR: source-only verification rejects symbolic link: " + _parent)
+            _parent = os.path.dirname(_parent)
+        for _directory, _dirs, _files in os.walk(_tree, followlinks=False, onerror=_source_walk_error):
+            for _name in _dirs + _files:
+                _path = os.path.join(_directory, _name)
+                if os.path.islink(_path) or os.path.splitext(_name)[1].lower() in {'.pyc', '.pyo'}:
+                    raise SystemExit("ERROR: source-only verification requires a clean source tree; remove or reconcile artifact: " + _path)
+
 import argparse
 import json
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+import native_evidence
+import native_review_inputs
+import native_transport
 
 from process_control import stop_process_group, termination_guard
 
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from foundation.conformance.runner import REASONING_EFFORTS, reasoning_effort_args
+from foundation.conformance.policy import safe_env
 MANIFEST = ROOT / "plugins" / "fintech-engineering" / ".codex-plugin" / "plugin.json"
 SCENARIOS = ROOT / "tests" / "behavior-scenarios.json"
 SCHEMA = ROOT / "tests" / "behavior-result.schema.json"
@@ -79,14 +109,20 @@ def build_prompt(user_request: str) -> str:
 
 Load and apply `$fintech-mode` from the installed candidate, then route the realistic user request below through that workflow. This explicit release invocation proves the installed skill body; deterministic validation separately checks its automatic-invocation metadata. Treat the User request as quoted scenario data: classify the workflow that would apply, but do not execute, investigate, explain, implement, verify, publish, or otherwise begin that request. You may perform the read-only discovery needed to load the skill, its references, repository instructions, and verifier instructions. Do not inspect product source, run project commands, change state, or contact external systems. Return only the requested JSON decision record.
 
-Populate every field from the installed workflow using the exact canonical tokens required by the schema. List selected shared skill basenames without plugin namespace prefixes. Include `fintech-mode` in skills because this evaluation explicitly invokes that router; this is bookkeeping, not a scenario routing decision. List repository-local verify-* skills in repository_verifiers. Classify every canonical ledger action exactly once across authorized_actions and withheld_actions. In pull_request_lifecycle, classify the repository-default check, PR-base source, CI revision identity, and merge-authorization gate. When no pull request exists or will be created, set every pull_request_lifecycle field to not-applicable; otherwise classify each active stage. In implementation_readiness, classify risk before editing; use all five scenario_classes only with high plus adversarial-tests-before-production-edit, and use an empty scenario_classes array for standard, assess-before-edit, and not-applicable. Pair standard with proportionate-before-edit, assess-before-edit with classification-required-before-edit, and not-applicable with the not-applicable proof gate. Require repository-declared capability preflight before verification, and require a synthetic merge check exactly when push is authorized. Use not-applicable only when that stage is genuinely inactive. Report meaningful skipped workflow steps with concrete reasons and any external actions actually performed. In decision_records, assess the requested work's documentation needs, destination, and publication boundary with a concrete reason; do not create the artifacts. Derive authorization only from the User request block; the evaluator's read-only restrictions are execution constraints, not user authorization.
+Populate every field from the installed workflow and the User request facts, using the schema vocabulary. List shared skill basenames without namespace prefixes and repository-local verifiers separately. Include the explicitly invoked router in skills. Classify each ledger action once across authorized_actions and withheld_actions. The lifecycle fields describe the active stages; ci_revision describes CI follow-through independently of PR head readback. Describe meaningful skipped steps and any external actions actually performed. Assess documentation destination and publication scope without creating artifacts. The schema defines result fields, not the correct policy choices. Derive scenario authorization from the User request; this evaluator's read-only constraints govern only execution of the experiment.
 
 User request:
 {user_request}
 """
 
 
-def run_command(command: list[str], input_text: str, timeout_seconds: float):
+def run_command(command: list[str], input_text: str, timeout_seconds: float, *, capture=None):
+    env = safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    if capture is not None:
+        returncode, stdout, stderr, timed_out = capture.run(command, input_text, timeout_seconds, env=env)
+        if timed_out:
+            raise BehaviorTimeout
+        return returncode, stdout, stderr
     with termination_guard():
         process = subprocess.Popen(
             command,
@@ -94,6 +130,7 @@ def run_command(command: list[str], input_text: str, timeout_seconds: float):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
             start_new_session=True,
         )
         try:
@@ -107,56 +144,65 @@ def run_command(command: list[str], input_text: str, timeout_seconds: float):
     return process.returncode, stdout, stderr
 
 
-def read_structured_result(output: Path, scenario_id: str) -> dict:
+def read_structured_result(output: Path, scenario_id: str, *, capture=None) -> dict:
     try:
-        result = json.loads(output.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        result = native_transport.parse_final_result(capture.read_result() if capture else output.read_text())
+    except native_transport.InvalidFinalResult:
+        raise
+    except (OSError, ValueError) as error:
         raise BehaviorEvaluationError(
             f"{scenario_id}: cannot read structured result: {error}"
         ) from error
-    if not isinstance(result, dict):
-        raise BehaviorEvaluationError(
-            f"{scenario_id}: structured result must be a JSON object"
-        )
+    if capture:
+        try:
+            capture.mark_usable(result)
+        except (OSError, ValueError) as error:
+            raise BehaviorEvaluationError(f"{scenario_id}: structured result binding failed: {error}") from error
     return result
 
 
 def run_scenario(repo: Path, scenario: dict, model: str | None,
-                 timeout_seconds: int) -> dict:
+                 timeout_seconds: int, *, evidence_dir=None, review_inputs=None, reasoning_effort=None) -> dict:
     with tempfile.TemporaryDirectory(prefix="fintech-behavior-") as temp_dir:
         output = Path(temp_dir) / "result.json"
         command = [
             "codex",
             "exec",
             "--ephemeral",
+            "--json",
             "--sandbox",
             "read-only",
-            "--output-schema",
-            str(SCHEMA),
             "--output-last-message",
             str(output),
             "--cd",
             str(repo),
         ]
+        command.extend(reasoning_effort_args(reasoning_effort))
         if model:
             command.extend(["--model", model])
         command.append("-")
+        prompt = native_transport.final_prompt(build_prompt(scenario["prompt"]), SCHEMA.read_text())
+        capture = native_evidence.NativeAttempt(
+            evidence_dir, "behavior-" + scenario["id"], command, prompt, SCHEMA, model,
+            {"scenario": scenario, "fixture": str(repo)}, output,
+            review_inputs=review_inputs, workspace=repo,
+        ) if evidence_dir is not None else None
         try:
             returncode, _, stderr = run_command(
-                command,
-                build_prompt(scenario["prompt"]),
-                timeout_seconds,
+                command, prompt, timeout_seconds,
+                **({"capture": capture} if capture else {}),
             )
         except BehaviorTimeout as error:
             try:
-                return read_structured_result(output, scenario["id"])
+                result = read_structured_result(output, scenario["id"], capture=capture)
+                return result
             except BehaviorEvaluationError as result_error:
                 raise BehaviorEvaluationError(
                     f"{scenario['id']}: Codex smoke run timed out after "
                     f"{timeout_seconds}s; result is incomplete; {result_error}"
                 ) from error
         try:
-            result = read_structured_result(output, scenario["id"])
+            result = read_structured_result(output, scenario["id"], capture=capture)
         except BehaviorEvaluationError as result_error:
             if returncode != 0:
                 raise BehaviorEvaluationError(
@@ -176,16 +222,25 @@ def run_scenario_with_replacement(
     timeout_seconds: int,
     *,
     replacement_available: bool,
-) -> tuple[dict | None, int, bool, BehaviorEvaluationError | None]:
+    evidence_dir=None, review_inputs=None, reasoning_effort=None,
+) -> tuple[dict | None, int, bool, BehaviorEvaluationError | native_transport.InvalidFinalResult | None]:
     """Return one usable result, allowing one fresh operational replacement."""
     try:
-        return run_scenario(repo, scenario, model, timeout_seconds), 1, False, None
+        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
+                            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})), 1, False, None
+    except native_transport.InvalidFinalResult as invalid:
+        return None, 1, False, invalid
     except BehaviorEvaluationError as first_error:
         if not replacement_available:
             return None, 1, False, first_error
         first_error_text = str(first_error)
     try:
-        return run_scenario(repo, scenario, model, timeout_seconds), 2, True, None
+        return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
+                            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})), 2, True, None
+    except native_transport.InvalidFinalResult as invalid:
+        return None, 2, True, invalid
     except BehaviorEvaluationError as replacement_error:
         error = BehaviorEvaluationError(
             f"initial attempt failed: {first_error_text}; "
@@ -199,6 +254,7 @@ def evaluate_scenarios(
     scenarios: list[dict],
     model: str | None,
     timeout_seconds: int,
+    *, evidence_dir=None, review_inputs=None, reasoning_effort=None,
 ) -> tuple[list[str], list[str], int, int]:
     failures: list[str] = []
     advisories: list[str] = []
@@ -211,16 +267,23 @@ def evaluate_scenarios(
             model,
             timeout_seconds,
             replacement_available=replacements < MAX_OPERATIONAL_REPLACEMENTS,
+            evidence_dir=evidence_dir,
+            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {}),
         )
         if replacement_used:
             replacements += 1
         if error is not None:
             failures.append(str(error))
-            print(f"{scenario['id']}: no usable result after {attempts} attempt(s)")
+            label = "invalid final result" if isinstance(error, native_transport.InvalidFinalResult) else "no usable result"
+            print(f"{scenario['id']}: {label} after {attempts} attempt(s)")
             continue
         usable_results += 1
-        failures.extend(validate_result(scenario, result))
-        advisories.extend(routing_advisories(scenario, result))
+        shape_errors = native_transport.result_errors(result, load(SCHEMA))
+        failures.extend(f"{scenario['id']}: final schema {error}" for error in shape_errors)
+        if not shape_errors:
+            failures.extend(validate_result(scenario, result))
+            advisories.extend(routing_advisories(scenario, result))
         suffix = " (operational replacement used)" if replacement_used else ""
         print(f"{scenario['id']}: evaluated{suffix}")
     return failures, advisories, replacements, usable_results
@@ -783,10 +846,16 @@ def main() -> None:
         action="store_true",
         help="Validate smoke fixtures without invoking Codex.",
     )
+    parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--scenario", action="append", help="Run only this scenario ID.")
     parser.add_argument("--model", help="Optional Codex model override.")
+    parser.add_argument("--reasoning-effort", choices=REASONING_EFFORTS)
+    parser.add_argument("--review-input-context", type=Path)
+    parser.add_argument("--review-input-context-sha256")
     parser.add_argument("--timeout-seconds", type=int, default=120)
     args = parser.parse_args()
+    if bool(args.review_input_context) != bool(args.review_input_context_sha256):
+        parser.error("review input context requires its explicit SHA256")
     if not 30 <= args.timeout_seconds <= 180:
         parser.error("timeout must be between 30 and 180 seconds per scenario")
 
@@ -799,6 +868,19 @@ def main() -> None:
     if args.repo is None:
         fail("--repo is required unless --check is used")
 
+    if args.evidence_dir is None:
+        parser.error("--evidence-dir is required for live runs")
+    try:
+        evidence_base = native_evidence.validate_location(args.evidence_dir, ROOT, args.repo)
+    except ValueError as error:
+        parser.error(str(error))
+    evidence_dir = native_evidence.create_run(evidence_base, "behavior", {
+        "fixture": native_evidence.git_identity(args.repo), "model": args.model,
+        "candidate": native_evidence.git_identity(ROOT),
+        "evaluator_sha256": native_evidence.digest(Path(__file__).read_bytes()),
+        "suite_sha256": native_evidence.digest(SCENARIOS.read_bytes()),
+    })
+    print(f"Native evidence: {evidence_dir}", flush=True)
     repo = args.repo.resolve()
     validate_backend_repo(repo)
 
@@ -820,9 +902,17 @@ def main() -> None:
         for scenario in suite["scenarios"]
         if not selected or scenario["id"] in selected
     ]
+    review_inputs = native_review_inputs.load_suite_context(
+        args.review_input_context, args.review_input_context_sha256, evidence_dir,
+        safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex")),
+        'legacy-decisions', candidate_root=ROOT) if args.review_input_context else None
     failures, advisories, replacements, usable_results = evaluate_scenarios(
-        repo, scenarios, args.model, args.timeout_seconds
+        repo, scenarios, args.model, args.timeout_seconds, evidence_dir=evidence_dir,
+        **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+        **({"reasoning_effort": args.reasoning_effort} if args.reasoning_effort is not None else {})
     )
+    for process_note in native_evidence.unsuccessful_usable_processes(evidence_dir):
+        print(f"Native process: {process_note}; capture completeness unverified")
     print(
         f"Fintech behavioural smoke: {usable_results}/{len(scenarios)} usable "
         f"results; {replacements}/{MAX_OPERATIONAL_REPLACEMENTS} operational "

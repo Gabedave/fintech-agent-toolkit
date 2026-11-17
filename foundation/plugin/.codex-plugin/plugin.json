@@ -1,0 +1,35 @@
+{
+  "name": "{{PLUGIN_NAME}}",
+  "version": "{{PLUGIN_VERSION}}",
+  "description": "Shared engineering workflows for {{AUDIENCE}} product repositories",
+  "author": {
+    "name": "{{COMPANY}}",
+    "url": "{{REPOSITORY_URL}}"
+  },
+  "homepage": "{{REPOSITORY_URL}}",
+  "repository": "{{REPOSITORY_URL}}",
+  "keywords": [
+    "fintech",
+    "engineering",
+    "verification",
+    "review",
+    "ci"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "{{COMPANY}} Engineering",
+    "shortDescription": "Evidence-backed workflows for {{AUDIENCE}} software",
+    "longDescription": "Codex workflows for understanding, designing, implementing, verifying, and reviewing {{AUDIENCE}} software using repository-owned proof.",
+    "developerName": "{{COMPANY}}",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use ${{ROUTER}} automatically for non-trivial engineering tasks.",
+      "Let ${{ROUTER}} route system explanation, historical evidence, and architecture when they apply.",
+      "Let ${{ROUTER}} route verification maintenance and work continuity when they apply."
+    ]
+  }
+}

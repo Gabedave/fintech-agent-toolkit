@@ -1,7 +1,9 @@
 import importlib.util
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -20,7 +22,9 @@ def load_module():
     if spec is None or spec.loader is None:
         raise RuntimeError("cannot load merge candidate verifier")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Import the managed plugin without adding unpinned bytecode to its tree.
+    with mock.patch.object(sys, "dont_write_bytecode", True):
+        spec.loader.exec_module(module)
     return module
 
 
@@ -35,6 +39,15 @@ def git(repo: Path, *args: str) -> str:
 
 
 class MergeCandidateVerifier(unittest.TestCase):
+    def test_import_does_not_write_plugin_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / SCRIPT.name
+            script.write_bytes(SCRIPT.read_bytes())
+            with mock.patch.dict(globals(), {"SCRIPT": script}), mock.patch.object(sys, "dont_write_bytecode", False):
+                load_module()
+                self.assertFalse(sys.dont_write_bytecode)
+            self.assertEqual([script.name], sorted(path.name for path in Path(directory).iterdir()))
+
     def make_repo(self) -> tuple[Path, tempfile.TemporaryDirectory]:
         temporary = tempfile.TemporaryDirectory(prefix="fintech-merge-test-")
         repo = Path(temporary.name) / "repo"

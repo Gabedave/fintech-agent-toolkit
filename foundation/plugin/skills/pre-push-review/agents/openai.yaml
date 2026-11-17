@@ -1,0 +1,7 @@
+interface:
+  display_name: "Pre-Push Review"
+  short_description: "Independent evidence-backed quality gate"
+  default_prompt: "Use $pre-push-review to review and verify my current changes before I push them."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Work Continuity"
+  short_description: "Make long engineering work safely resumable"
+  default_prompt: "Use $work-continuity to create or refresh a compact decision and resume record for this task."
+
+policy:
+  allow_implicit_invocation: true

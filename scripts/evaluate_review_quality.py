@@ -1,21 +1,49 @@
 #!/usr/bin/env python3
 """Bounded synthetic review pilot; never execute code supplied by a model."""
 
+# Use only built-in/frozen modules until executable source trees are checked.
+import os
+import sys
+
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+    sys.pycache_prefix = None
+    _root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    def _source_walk_error(error):
+        raise SystemExit("ERROR: source-only verification cannot inspect source tree: " + str(error))
+    for _folder in ('scripts', 'foundation', 'tests/review-quality'):
+        _tree = os.path.join(_root, _folder)
+        _parent = _tree
+        while _parent != _root:
+            if os.path.islink(_parent):
+                raise SystemExit("ERROR: source-only verification rejects symbolic link: " + _parent)
+            _parent = os.path.dirname(_parent)
+        for _directory, _dirs, _files in os.walk(_tree, followlinks=False, onerror=_source_walk_error):
+            for _name in _dirs + _files:
+                _path = os.path.join(_directory, _name)
+                if os.path.islink(_path) or os.path.splitext(_name)[1].lower() in {'.pyc', '.pyo'}:
+                    raise SystemExit("ERROR: source-only verification requires a clean source tree; remove or reconcile artifact: " + _path)
+
 import argparse
 import hashlib
 import json
-import os
 import re
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
+import native_evidence
+import native_review_inputs
+import native_transport
 import evaluate_behavior
 from process_control import stop_process_group, termination_guard
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from foundation.conformance.runner import REASONING_EFFORTS, reasoning_effort_args
+from foundation.conformance.policy import safe_env
 FIXTURES = ROOT / "tests" / "review-quality"
 SUITE = FIXTURES / "cases.json"
 SCHEMA = FIXTURES / "result.schema.json"
@@ -32,13 +60,18 @@ class EvaluationError(Exception):
     pass
 
 
-def run_command(command, *, timeout, cwd=None, input_text=None):
+def run_command(command, *, timeout, cwd=None, input_text=None, capture=None):
     # A new process group also bounds Codex's children, not just its CLI parent.
     # Keep runtime/auth discovery, not arbitrary product/provider credentials.
-    env = {key: os.environ[key] for key in
-           ("PATH", "HOME", "TMPDIR", "SYSTEMROOT", "LANG", "LC_ALL", "CODEX_HOME")
-           if key in os.environ}
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env = safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    if capture is not None:
+        returncode, stdout, _, timed_out = capture.run(
+            command, input_text, timeout, cwd=cwd, env=env)
+        if timed_out:
+            raise EvaluationError("execution timed out; result is incomplete")
+        if returncode:
+            raise EvaluationError(f"execution failed (exit {returncode}); result is incomplete")
+        return stdout
     with termination_guard():
         process = subprocess.Popen(command, cwd=cwd, env=env, text=True,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -280,8 +313,8 @@ def score_review(case, variant, result, expected_snapshot=None,
 
 def load_suite():
     suite = json.loads(SUITE.read_text())
-    if set(suite) != {"version", "cases"} or suite["version"] != 1 or len(suite["cases"]) != 4:
-        raise EvaluationError("pilot must contain exactly four paired cases")
+    if set(suite) != {"version", "cases"} or suite["version"] != 1 or len(suite["cases"]) != 5:
+        raise EvaluationError("pilot must contain exactly five paired cases")
     seen = set()
     for case in suite["cases"]:
         if set(case) != {"id", "lines", "required_invariants", "counterexample", "neutral"}:
@@ -392,7 +425,7 @@ Return the requested structured review only; no external review submission is au
 """
 
 
-def run_review(case, variant, timeout, model=None, reviewer_attempts=1):
+def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evidence_dir=None, review_inputs=None, reasoning_effort=None):
     with tempfile.TemporaryDirectory(prefix="fintech-review-") as directory:
         workspace = Path(directory)
         materialize(case, variant, workspace)
@@ -402,45 +435,79 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1):
         schema.write_text(SCHEMA.read_text())
         before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in workspace.iterdir()}
         output = workspace / "review.json"
-        command = ["codex", "exec", "--ephemeral", "--sandbox", "read-only",
-                   "--skip-git-repo-check", "--output-schema", str(schema),
+        command = ["codex", "exec", "--ephemeral", "--json", "--sandbox", "read-only",
+                   "--skip-git-repo-check",
                    "--output-last-message", str(output), "--cd", str(workspace)]
+        command.extend(reasoning_effort_args(reasoning_effort))
         if model:
             command.extend(["--model", model])
         command.append("-")
-        run_command(
-            command,
-            timeout=timeout,
-            cwd=workspace,
-            input_text=build_prompt(snapshot, reviewer_attempts),
-        )
+        prompt = native_transport.final_prompt(build_prompt(snapshot, reviewer_attempts), schema.read_text())
+        capture = native_evidence.NativeAttempt(
+            evidence_dir, f"review-{case['id']}-{variant}-attempt-{reviewer_attempts}",
+            command, prompt, schema, model,
+            {"case": case["id"], "variant": variant, "snapshot": snapshot,
+             "fixture_hashes": before, "reviewer_attempts": reviewer_attempts}, output,
+            review_inputs=review_inputs, workspace=workspace,
+        ) if evidence_dir is not None else None
+        process_error = None
+        try:
+            run_command(
+                command, timeout=timeout, cwd=workspace, input_text=prompt,
+                **({"capture": capture} if capture else {}),
+            )
+        except EvaluationError as error:
+            # A complete first result is scored once, even after a late process
+            # error. Its unsuccessful process remains a separate evidence fact.
+            process_error = error
         after = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                  for path in workspace.iterdir() if path.name != "review.json" and path.is_file()}
         if before != after or any(path.is_dir() for path in workspace.iterdir()):
             raise EvaluationError("review changed the fixture; result is incomplete")
-        if output.is_symlink() or not output.is_file() or output.stat().st_size > 100_000:
-            raise EvaluationError("missing or oversized review result")
         try:
-            return json.loads(output.read_text()), snapshot
+            if capture:
+                data = capture.read_result()
+            else:
+                if output.is_symlink() or not output.is_file() or output.stat().st_size > 100_000:
+                    raise EvaluationError("missing or oversized review result") from process_error
+                data = output.read_text()
+            if len(data) > 100_000:
+                raise EvaluationError("missing or oversized review result") from process_error
+            result = native_transport.parse_final_result(data)
+            if capture:
+                capture.mark_usable(result)
+            return result, snapshot
+        except native_transport.InvalidFinalResult:
+            raise
         except json.JSONDecodeError as error:
             raise EvaluationError("review result is not JSON") from error
+        except (OSError, ValueError) as error:
+            raise EvaluationError(f"review result binding unavailable: {error}") from error
 
 
 def run_review_with_replacement(case, variant, timeout, model=None,
-                                replacement_available=False):
+                                replacement_available=False, *, evidence_dir=None, review_inputs=None, reasoning_effort=None):
     try:
         result, snapshot = run_review(
-            case, variant, timeout, model, reviewer_attempts=1
+            case, variant, timeout, model, reviewer_attempts=1, evidence_dir=evidence_dir,
+            **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})
         )
         return result, snapshot, 1, False, None
+    except native_transport.InvalidFinalResult as invalid:
+        return None, None, 1, False, invalid
     except (EvaluationError, OSError) as first_error:
         if not replacement_available:
             return None, None, 1, False, first_error
         try:
             result, snapshot = run_review(
-                case, variant, timeout, model, reviewer_attempts=2
+                case, variant, timeout, model, reviewer_attempts=2, evidence_dir=evidence_dir,
+                **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})
             )
             return result, snapshot, 2, True, None
+        except native_transport.InvalidFinalResult as invalid:
+            return None, None, 2, True, invalid
         except (EvaluationError, OSError) as replacement_error:
             error = EvaluationError(
                 f"initial attempt failed: {first_error}; "
@@ -455,8 +522,14 @@ def main():
     mode.add_argument("--check", action="store_true", help="Run deterministic fixture checks only.")
     mode.add_argument("--run", action="store_true", help="Review all pairs using the installed candidate.")
     parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument("--evidence-dir", type=Path, help="Persistent native evidence directory (required for live runs).")
     parser.add_argument("--model", help="Optional explicit model override.")
+    parser.add_argument("--reasoning-effort", choices=REASONING_EFFORTS)
+    parser.add_argument("--review-input-context", type=Path)
+    parser.add_argument("--review-input-context-sha256")
     args = parser.parse_args()
+    if bool(args.review_input_context) != bool(args.review_input_context_sha256):
+        parser.error("review input context requires its explicit SHA256")
     if not 30 <= args.timeout_seconds <= 180:
         parser.error("timeout must be between 30 and 180 seconds per review")
     try:
@@ -465,10 +538,23 @@ def main():
         if args.check:
             print(f"Review-quality fixtures passed ({len(cases)} pairs; no model invocation)")
             return
+        if args.evidence_dir is None:
+            parser.error("--evidence-dir is required for live runs")
+        evidence_base = native_evidence.validate_location(args.evidence_dir, ROOT)
+        evidence_dir = native_evidence.create_run(evidence_base, "review", {
+            "model": args.model, "candidate": native_evidence.git_identity(ROOT),
+            "evaluator_sha256": native_evidence.digest(Path(__file__).read_bytes()),
+            "suite_sha256": native_evidence.digest(SUITE.read_bytes()),
+        })
+        print(f"Native evidence: {evidence_dir}", flush=True)
         plugin = evaluate_behavior.installed_plugin()
         version = json.loads(evaluate_behavior.MANIFEST.read_text())["version"]
         if plugin.get("version") != version:
             raise EvaluationError("installed plugin version does not match the candidate")
+        review_inputs = native_review_inputs.load_suite_context(
+            args.review_input_context, args.review_input_context_sha256, evidence_dir,
+            safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex")),
+            'review-quality', candidate_root=ROOT) if args.review_input_context else None
         failures = []
         detected = accepted = false_blockers = completed = replacements = 0
         started = time.monotonic()
@@ -483,23 +569,28 @@ def main():
                         args.timeout_seconds,
                         args.model,
                         replacement_available=replacements == 0,
+                        evidence_dir=evidence_dir,
+                        **({"review_inputs": review_inputs} if review_inputs is not None else {}),
+                        **({"reasoning_effort": args.reasoning_effort} if args.reasoning_effort is not None else {}),
                     )
                 )
                 replacements += int(replacement_used)
                 if error is not None:
                     failures.append(f"{label}: {error}")
-                    print(f"{label}: incomplete", flush=True)
+                    disposition = "invalid final result" if isinstance(error, native_transport.InvalidFinalResult) else "incomplete"
+                    print(f"{label}: {disposition}", flush=True)
                     continue
                 try:
-                    errors = score_review(
+                    shape_errors = native_transport.result_errors(result, json.loads(SCHEMA.read_text()))
+                    errors = ([f"final schema {error}" for error in shape_errors] if shape_errors else score_review(
                         case,
                         variant,
                         result,
                         expected_snapshot=snapshot,
                         expected_reviewer_attempts=attempts,
-                    )
+                    ))
                     completed += 1
-                    if not result_errors(result):
+                    if not shape_errors and not result_errors(result):
                         false_blockers += int(variant == "fixed" and any(
                             item["severity"] != "Minor" for item in result["findings"]))
                     detected += int(variant == "broken" and not errors)
@@ -518,6 +609,8 @@ def main():
               f"{replacements}/1 operational replacements used; "
               f"{completed}/{result_count} results; "
               f"{time.monotonic() - started:.1f}s")
+        for process_note in native_evidence.unsuccessful_usable_processes(evidence_dir):
+            print(f"Native process: {process_note}; capture completeness unverified")
         if failures:
             raise EvaluationError("; ".join(failures))
         print(f"Review-quality pilot passed ({result_count}/{result_count} cases); "

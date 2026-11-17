@@ -1,0 +1,7 @@
+interface:
+  display_name: "How"
+  short_description: "Explain the current system before changing it"
+  default_prompt: "Use $how to explain how this {{AUDIENCE}} system currently works from entry point to observable outcome."
+
+policy:
+  allow_implicit_invocation: true

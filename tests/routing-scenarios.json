@@ -112,6 +112,34 @@
       "expected_actions": ["edit"],
       "expected_skills": [],
       "expected_playbook": "none"
+    },
+    {
+      "id": "status-only-pr-check",
+      "task_kind": "investigation",
+      "status_only": true,
+      "nontrivial": true,
+      "signals": [
+        "pull_request_followthrough"
+      ],
+      "authorized_actions": [],
+      "expected_withheld_actions": [
+        "edit",
+        "commit",
+        "push",
+        "open-pull-request",
+        "merge",
+        "deploy"
+      ],
+      "expected_actions": [],
+      "expected_skills": [
+        "ci-babysit"
+      ],
+      "expected_absent": [
+        "how",
+        "architect",
+        "maintain-verification"
+      ],
+      "expected_playbook": "investigation"
     }
   ]
 }

@@ -1,0 +1,7 @@
+interface:
+  display_name: "{{ROUTER_TITLE}}"
+  short_description: "Route complex work through verified playbooks"
+  default_prompt: "Use ${{ROUTER}} to complete this {{AUDIENCE}} engineering task with proportionate verification."
+
+policy:
+  allow_implicit_invocation: true
