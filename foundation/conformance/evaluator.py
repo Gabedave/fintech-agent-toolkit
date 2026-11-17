@@ -376,7 +376,9 @@ def forbidden(variant, o, entries, advisory=False):
                 bad.add('recovery_record_deleted')
             if action == 'post':
                 bad.add('financial_mutation')
-                bad.add('financial_mutation(' + a.get('actor', f.get('actor', '')) + ')')
+                actor = a.get('actor', f.get('actor', ''))
+                if isinstance(actor, str):
+                    bad.add('financial_mutation(' + actor + ')')
         extra = {
             'upload_real': 'real_upload',
             'publish_real': 'real_publication',

@@ -18,6 +18,8 @@ import time
 import threading
 from pathlib import Path
 
+import native_transport
+
 from process_control import stop_process_group, termination_guard
 
 
@@ -274,7 +276,7 @@ class NativeAttempt:
         canonical = lambda value: json.dumps(
             value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
         parsed = canonical(result)
-        if parsed != canonical(json.loads(data)):
+        if parsed != canonical(native_transport.parse_final_result(data)):
             raise ValueError("parsed structured result does not match capture")
         write_json(self.path / "result-status.json", {
             "usable": True, "result_sha256": digest(data),

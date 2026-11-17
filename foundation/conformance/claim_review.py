@@ -228,7 +228,7 @@ def report_projection(root, artifacts, version=2):
         for line, value in values:
             item = value.get('item', {})
             if version >= 3 and ((role == 'raw_tool_journal' and value.get('tool') == 'record') or
-                                 (role == 'raw_process_stream' and value.get('type') in {'item.started', 'item.completed'}
+                                 (role == 'raw_process_stream' and value.get('type') in {'item.started', 'item.updated', 'item.completed'}
                                   and item.get('type') == 'mcp_tool_call' and item.get('tool') == 'record')):
                 rows.extend(record_projection_v3(value, line, source, values, order, journal_arguments, source_rank))
             elif role == 'raw_tool_journal' and value.get('tool') == 'record':
@@ -385,8 +385,10 @@ def validate_manifest(manifest_path, candidate_root=None):
         raise ValueError('unknown raw manifest kind')
     if set(manifest['binding']) != set(p['binding_required_fields']) or any(value is None or value == '' for value in manifest['binding'].values()):
         raise ValueError('incomplete raw run binding')
-    if candidate_root and (Path(candidate_root).resolve() == root or Path(candidate_root).resolve() in root.parents):
-        raise ValueError('raw inputs must be external to candidate')
+    if candidate_root:
+        candidate = Path(candidate_root).resolve()
+        if candidate == root or candidate in root.parents or root in candidate.parents:
+            raise ValueError('raw inputs must be external to candidate')
     records = manifest['artifacts']
     ids = [record['artifact_id'] for record in records]
     paths = [record['path'] for record in records]

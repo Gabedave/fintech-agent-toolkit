@@ -35,8 +35,9 @@ It launches no process or model, installs nothing and never calls `safe_env`,
 the old auth-linking `main --run` path or the MCP launch path. The new API does
 not approve those older execution paths for a restricted caller.
 
-The byte-identical reviewed `native_reads.py` recognizes one literal absolute
-single-file `cat`, including the observed shell wrapper. All 22 original parser
+The source-bound `native_reads.py` recognizes one literal absolute
+single-file `cat`, including supported sh, zsh and Bash wrappers. Parser changes
+require a new source binding; historical captures retain their original bindings. All 22 original parser
 controls remain in `tests/test_native_read_capture.py`; additional integration
 controls use actual bounded reads of fresh owned files. Unrecognized, denied,
 partial, truncated, reordered or source-mismatched captures supply no admitted

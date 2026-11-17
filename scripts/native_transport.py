@@ -12,6 +12,25 @@ TYPES = {'object': dict, 'array': list, 'string': str, 'integer': int,
          'boolean': bool, 'null': type(None)}
 
 
+class InvalidFinalResult(ValueError):
+    """A captured final decision is invalid, not an operational retry opportunity."""
+
+
+def parse_final_result(raw):
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise InvalidFinalResult('duplicate final JSON key: ' + key)
+            result[key] = value
+        return result
+
+    def nonfinite(value):
+        raise InvalidFinalResult('nonfinite final JSON value: ' + value)
+
+    return json.loads(raw, object_pairs_hook=unique, parse_constant=nonfinite)
+
+
 def validate_schema(schema):
     if not isinstance(schema, dict) or set(schema) - KEYWORDS:
         raise ValueError('unsupported native final schema vocabulary')

@@ -451,12 +451,14 @@ def run_review(case, variant, timeout, model=None, reviewer_attempts=1, *, evide
                 data = output.read_text()
             if len(data) > 100_000:
                 raise EvaluationError("missing or oversized review result") from process_error
-            result = json.loads(data)
+            result = native_transport.parse_final_result(data)
             if not isinstance(result, dict):
                 raise EvaluationError("review result must be a JSON object")
             if capture:
                 capture.mark_usable(result)
             return result, snapshot
+        except native_transport.InvalidFinalResult:
+            raise
         except json.JSONDecodeError as error:
             raise EvaluationError("review result is not JSON") from error
         except (OSError, ValueError) as error:
@@ -472,6 +474,8 @@ def run_review_with_replacement(case, variant, timeout, model=None,
             **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})
         )
         return result, snapshot, 1, False, None
+    except native_transport.InvalidFinalResult as invalid:
+        return None, None, 1, False, invalid
     except (EvaluationError, OSError) as first_error:
         if not replacement_available:
             return None, None, 1, False, first_error
@@ -482,6 +486,8 @@ def run_review_with_replacement(case, variant, timeout, model=None,
                 **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})
             )
             return result, snapshot, 2, True, None
+        except native_transport.InvalidFinalResult as invalid:
+            return None, None, 2, True, invalid
         except (EvaluationError, OSError) as replacement_error:
             error = EvaluationError(
                 f"initial attempt failed: {first_error}; "
@@ -551,7 +557,8 @@ def main():
                 replacements += int(replacement_used)
                 if error is not None:
                     failures.append(f"{label}: {error}")
-                    print(f"{label}: incomplete", flush=True)
+                    disposition = "invalid final result" if isinstance(error, native_transport.InvalidFinalResult) else "incomplete"
+                    print(f"{label}: {disposition}", flush=True)
                     continue
                 try:
                     shape_errors = native_transport.result_errors(result, json.loads(SCHEMA.read_text()))

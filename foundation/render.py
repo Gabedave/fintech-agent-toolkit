@@ -52,6 +52,14 @@ def file_mode(path):
     return f"{mode:04o}"
 
 
+def source_mode(path):
+    # Git tracks the owner executable bit, not checkout umask permissions.
+    mode = path.stat().st_mode
+    if not stat.S_ISREG(mode) or mode & (stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX):
+        raise Invalid(f"unsupported source file mode: {path}")
+    return "0755" if mode & stat.S_IXUSR else "0644"
+
+
 def file_record(content, mode):
     return {"sha256": digest(content), "mode": mode}
 
@@ -206,7 +214,7 @@ def generate(profile, commit):
             source_files.append(path)
             if bundle in path.parents:
                 bundle_files.append(path)
-    source_hashes = {path.relative_to(FOUNDATION).as_posix(): file_record(path.read_bytes(), file_mode(path))
+    source_hashes = {path.relative_to(FOUNDATION).as_posix(): file_record(path.read_bytes(), source_mode(path))
                      for path in source_files}
     tokens = substitutions(profile)
     files = {}

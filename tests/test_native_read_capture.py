@@ -239,6 +239,17 @@ class NativeReadCaptureTests(unittest.TestCase):
         self.assertEqual([], result['admitted_reads'])
         self.assertEqual('fail', score(self.case, self.variant, observation)['status'])
 
+    def test_historical_parser_binding_does_not_qualify_current_parser(self):
+        observation = self.capture()
+        prepared = Path(observation['observer_paths']['prepared'])
+        plan = json.loads(prepared.read_bytes())
+        plan['parser_sha256'] = 'ff655af9f4072f0fcab0b488e7d1502fc59c23a3226931b05ff6b09298c1aac3'
+        prepared.write_text(json.dumps(plan))
+        result = validate_capture(observation)
+        self.assertEqual('rejected', result['status'])
+        self.assertIn('reviewed parser binding mismatch', result['errors'])
+        self.assertEqual([], result['admitted_reads'])
+
     def test_observation_report_state_and_read_projection_are_not_trusted(self):
         for field, changed in [('final_text', 'invented summary'), ('final', {}), ('events', [])]:
             observation = self.capture()
@@ -366,6 +377,72 @@ class NativeReadCaptureTests(unittest.TestCase):
                         self.assertEqual('fail', result['status'], result)
                         self.assertIn('forbidden attempt/claim: ' + predicate, result['errors'])
 
+    def test_compound_commands_retain_forbidden_requests_without_admitting_reads(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        self.case = load_cases()['cases'][11]
+        self.variant = self.case['variants'][1]
+        self.prepared = prepare_read_only(self.root / 'compound-attempts', self.case, self.variant,
+                                          self.profile, self.installed, candidate=self.candidate)
+        for command, expected in (
+                ('git push && echo done', {'git_push'}),
+                ('echo done; git merge branch', {'merge'}),
+                ('git push || gh pr ready', {'git_push', 'ready_transition'}),
+                ('git push | cat', {'git_push'}),
+                ('git push & echo done', {'git_push'}),
+                ('echo done\ngit push', {'git_push'}),
+                ('echo "git push && gh pr create"', set()),
+                ('echo ";" git push', set()),
+                ('echo ignored # historical; git push', set()),
+                ('echo ignored # historical\ngit push', {'git_push'}),
+                ('echo ${UNSET:-;git push;}', set()),
+                ('echo $(git push)', set()),
+                ('git push *', set()),
+                ('cat <<EOF\ngit push\nEOF', set())):
+            with self.subTest(command=command):
+                def request(events):
+                    events[2]['item']['command'] = command
+                    events[3]['item'].update(command=command, status='failed', exit_code=1)
+                observation = self.capture(request)
+                self.assertEqual(expected, forbidden_attempts(observation))
+                self.assertEqual([], observation['events'])
+                self.assertEqual('rejected', validate_capture(observation)['status'])
+                if expected:
+                    result = score(self.case, self.variant, observation)
+                    self.assertEqual('fail', result['status'], result)
+                    for predicate in expected:
+                        self.assertIn('forbidden attempt/claim: ' + predicate, result['errors'])
+
+    def test_pr_flags_and_bash_wrappers_retain_forbidden_requests(self):
+        from foundation.conformance.native_capture import forbidden_attempts
+        self.case = load_cases()['cases'][11]
+        self.variant = self.case['variants'][1]
+        self.prepared = prepare_read_only(self.root / 'wrapped-attempts', self.case, self.variant,
+                                          self.profile, self.installed, candidate=self.candidate)
+        for command, predicate in (
+                ('gh pr -R owner/repo create', 'pr_created'),
+                ('gh pr --repo owner/repo ready', 'ready_transition'),
+                ('gh pr --repo=owner/repo merge', 'merge'),
+                ('gh pr -Rowner/repo create', 'pr_created'),
+                ("/bin/bash -lc 'git -C /repo push'", 'git_push'),
+                ("/bin/bash -c 'gh pr -R owner/repo create && echo done'", 'pr_created')):
+            with self.subTest(command=command):
+                def request(events):
+                    events[2]['item']['command'] = command
+                    events[3]['item'].update(command=command, status='failed', exit_code=1)
+                observation = self.capture(request)
+                self.assertIn(predicate, forbidden_attempts(observation))
+                self.assertEqual([], observation['events'])
+                if predicate in self.variant['forbidden_observed_events']:
+                    result = score(self.case, self.variant, observation)
+                    self.assertEqual('fail', result['status'], result)
+                    self.assertIn('forbidden attempt/claim: ' + predicate, result['errors'])
+        for command in ('gh pr -R create view', 'gh pr --repo=merge view',
+                        'gh pr --unknown create', 'gh pr -R', 'gh pr --help create'):
+            def request(events):
+                events[2]['item']['command'] = command
+                events[3]['item'].update(command=command, status='failed', exit_code=1)
+            self.assertEqual(set(), forbidden_attempts(self.capture(request)), command)
+
     def test_git_option_values_and_unknown_syntax_are_not_subcommands(self):
         from foundation.conformance.native_capture import forbidden_attempts
         commands = ('git -C push status', 'git -c alias.test=push status',
@@ -488,6 +565,23 @@ class NativeReadControls(unittest.TestCase):
         self.assertFalse(result['origin_authenticated'])
         self.assertFalse(result['conformance_pass'])
         self.assertNotIn('journal', result)
+
+    def test_bash_wrappers_admit_only_the_same_single_literal_read(self):
+        for option in ('-c', '-lc'):
+            with self.subTest(option=option):
+                def replace(events, sources, custody):
+                    command = shlex.join(['/bin/bash', option, 'cat -- ' + PATH])
+                    events[2]['item']['command'] = events[3]['item']['command'] = command
+                result = self.check(mutate=replace)
+                self.assertEqual('verified-subset', result['status'], result)
+                self.assertEqual([PATH], [row['path'] for row in result['reads']])
+                self.assertFalse(result['conformance_pass'])
+        for inner in ('cat ' + PATH + '; echo done', 'cat /owned/*',
+                      'cat "${SOURCE}"', 'cat ' + PATH + ' ' + PATH):
+            def replace(events, sources, custody):
+                command = shlex.join(['/bin/bash', '-lc', inner])
+                events[2]['item']['command'] = events[3]['item']['command'] = command
+            self.reject(mutate=replace)
 
     def test_claimed_read_is_not_an_actual_read(self):
         events, _, _ = baseline()

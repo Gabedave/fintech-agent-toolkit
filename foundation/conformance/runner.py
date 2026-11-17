@@ -235,11 +235,18 @@ def stream_process(command, env, cwd, output, timeout, prompt=None, source_launc
                     ready_observed_at_ns = time.monotonic_ns()
                     deadline = min(outer_deadline, ready_observed_at_ns / 1e9 + synthetic_ready_timeout)
             if time.monotonic() > deadline:
+                if timed_out:
+                    # A descendant can escape the process group and retain a
+                    # pipe. Preserve buffered output, then close incomplete
+                    # streams rather than waiting indefinitely for their EOF.
+                    capture_gaps.append({'after_line': retained_lines, 'kind': 'post-timeout-open-stream'})
+                    errors.append('process streams remained open after timeout cleanup')
+                    break
                 timed_out = True
                 deadline_before_stop = deadline
                 stop()
-                deadline = float('inf')
-            wait = min(0.2, max(0, deadline-time.monotonic())) if synthetic_ready is not None else 0.2
+                deadline = time.monotonic() + 0.2
+            wait = min(0.2, max(0, deadline-time.monotonic()))
             for key, _ in selector.select(timeout=wait):
                 chunk = os.read(key.fileobj.fileno(), 65536)
                 if not chunk:

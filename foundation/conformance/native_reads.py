@@ -26,7 +26,8 @@ def cat_path(command):
         return None
     try:
         argv = shlex.split(command)
-        if len(argv) == 3 and argv[:2] in (['/bin/zsh', '-lc'], ['/bin/sh', '-c']):
+        if len(argv) == 3 and argv[:2] in (['/bin/zsh', '-lc'], ['/bin/sh', '-c'],
+                                                    ['/bin/bash', '-c'], ['/bin/bash', '-lc']):
             argv = shlex.split(argv[2])
         if argv and argv[0] in ('cat', '/bin/cat', '/usr/bin/cat'):
             args = argv[1:]

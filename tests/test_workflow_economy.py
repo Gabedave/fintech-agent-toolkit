@@ -78,6 +78,21 @@ class StatusOnlyRouting(unittest.TestCase):
         case["status_only"] = False
         self.assertIn("how", evaluate.route(contract, case)[1])
 
+    def test_persistent_status_monitoring_keeps_continuity_and_read_only_authority(self):
+        import evaluate
+        contract = json.loads((ROUTER / "references/routing-contract.json").read_text())
+        case = {"id":"monitor", "task_kind":"long-running", "nontrivial":True,
+                "status_only":True, "signals":["pull_request_followthrough", "long_running_or_handoff"]}
+        playbook, skills, actions, withheld = evaluate.route(contract, case)
+        self.assertEqual(playbook, "long-running")
+        self.assertEqual(skills, ["ci-babysit", "work-continuity"])
+        self.assertEqual(actions, [])
+        self.assertIn("merge", withheld)
+        for delta in ({"task_kind":"investigation"}, {"signals":["pull_request_followthrough"]},
+                      {"authorized_actions":["edit"]}, {"implementation_delivery":True}):
+            with self.subTest(delta=delta), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                evaluate.route(contract, dict(case, **delta))
+
     def test_status_marker_cannot_launder_mutation_or_diagnosis(self):
         sys.path.insert(0, str(ROOT / "scripts"))
         import evaluate

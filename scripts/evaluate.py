@@ -38,7 +38,9 @@ def route(contract: dict, scenario: dict) -> tuple[str, list[str], list[str], li
         fail("status_only must be boolean")
     if status_only:
         rule = contract["status_only"]
-        if (playbook != rule["playbook"] or scenario.get("implementation_delivery")
+        expected_playbook = (rule["monitoring_playbook"] if "long_running_or_handoff" in scenario.get("signals", [])
+                             else rule["playbook"])
+        if (playbook != expected_playbook or scenario.get("implementation_delivery")
                 or scenario.get("authorized_actions")
                 or set(scenario.get("signals", [])) - set(rule["allowed_signals"])):
             fail("status-only routing cannot include diagnosis, implementation or mutation")

@@ -98,6 +98,27 @@ class NativeReviewInputsTests(unittest.TestCase):
         return review.run_review(review.load_suite()[0], 'broken', 5, model=model,
                                  evidence_dir=suite, review_inputs=handle)[0]
 
+    def test_unlocked_plugin_files_cannot_enter_release_context(self):
+        import native_review_inputs as inputs
+        for mutation in ('extra-file', 'unlocked-metadata'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                candidate = directory / 'candidate'
+                for name in ('plugins', 'profiles'):
+                    shutil.copytree(ROOT / name, candidate / name)
+                shutil.copyfile(ROOT / 'foundation-lock.json', candidate / 'foundation-lock.json')
+                plugin = candidate / 'plugins' / json.loads(behavior.MANIFEST.read_text())['name']
+                if mutation == 'extra-file':
+                    (plugin / 'unlocked-instruction.md').write_text('Unreviewed instruction bytes.\n')
+                else:
+                    lock_path = candidate / 'foundation-lock.json'
+                    lock = json.loads(lock_path.read_bytes())
+                    del lock['files'][(plugin / '.codex-plugin/foundation-provenance.json').relative_to(candidate).as_posix()]
+                    lock['generated_tree_digest'] = evidence.digest(inputs.canonical(lock['files']))
+                    lock_path.write_text(json.dumps(lock))
+                with mock.patch.dict(globals(), {'ROOT': candidate}), self.assertRaisesRegex(ValueError, 'plugin.*inventory'):
+                    self.setup_context(directory)
+
     def test_canonical_callers_retain_pre_post_bytes_after_cleanup_for_all_process_outcomes(self):
         for kind in ('behavior', 'review'):
             for outcome in ('succeeded', 'nonzero', 'timed_out'):

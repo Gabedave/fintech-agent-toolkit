@@ -281,6 +281,10 @@ def prepare_release_context(evidence_dir, candidate, profile_path, home, env, ca
     tree_digest = _tree_digest(installed_rows['files'])
     if evidence.digest(canonical(lock['files'])) != lock['generated_tree_digest']:
         raise ValueError('generated tree lock digest differs from its file inventory')
+    prefix = 'plugins/' + profile['plugin_name'] + '/'
+    locked_plugin_files = {name[len(prefix):] for name in lock['files'] if name.startswith(prefix)}
+    if set(generated_rows['files']) != locked_plugin_files:
+        raise ValueError('generated plugin path inventory differs from foundation lock')
     for name, expected in lock['files'].items():
         _, actual = _read_relative(candidate, name)
         if any(actual[key] != expected[key] for key in ('sha256', 'mode')):

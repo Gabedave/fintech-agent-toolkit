@@ -413,10 +413,26 @@ class FoundationGeneration(unittest.TestCase):
         self.assertEqual(provenance["schema_version"], 2)
         self.assertEqual(provenance["content_files"]["helper.py"]["mode"], "0755")
 
+    def test_source_umask_permissions_keep_canonical_build_identity(self):
+        helper = self.bundle / "helper.py"
+        helper.write_text("# synthetic helper\n")
+        helper.chmod(0o755)
+        self.invoke()
+        first = self.files()
+        for normal, executable in ((0o664, 0o775), (0o600, 0o700)):
+            with self.subTest(normal=oct(normal)):
+                for path in self.foundation.rglob("*"):
+                    if path.is_file():
+                        path.chmod(executable if path == helper else normal)
+                other = self.root / ("umask-" + str(normal))
+                self.invoke(output=other)
+                self.assertEqual(first, self.files(other))
+                self.assertEqual(stat.S_IMODE((other / "plugins/example-engineering/helper.py").stat().st_mode), 0o755)
+
     def test_unsupported_source_file_modes_are_rejected(self):
         helper = self.bundle / "unsupported.py"
         helper.write_text("# synthetic\n")
-        for mode in (0o600, 0o664, 0o1755):
+        for mode in (0o1755,):
             with self.subTest(mode=oct(mode)):
                 helper.chmod(mode)
                 self.invoke(success=False)

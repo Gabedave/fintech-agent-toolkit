@@ -43,6 +43,14 @@ class NativeTransportTests(unittest.TestCase):
             with mock.patch.object(review, 'run_command', side_effect=review_run):
                 self.assertEqual({}, review.run_review(review.load_suite()[0], 'broken', 30)[0])
 
+    def test_final_json_rejects_duplicate_decoded_keys_and_nonfinite_constants(self):
+        import native_transport as transport
+        self.assertEqual({'nested': [{'key': 1}]}, transport.parse_final_result('{"nested":[{"key":1}]}'))
+        for raw in (r'{"key":1,"\u006bey":2}', '{"nested":[{"key":1,"key":2}]}',
+                    '{"value":NaN}', '{"value":Infinity}', '{"value":-Infinity}'):
+            with self.subTest(raw=raw), self.assertRaises(transport.InvalidFinalResult):
+                transport.parse_final_result(raw)
+
     def test_strict_schema_nested_extra_types_enum_and_unsupported_vocabulary(self):
         import native_transport as transport
         schema = {'type': 'object', 'required': ['items', 'enabled'], 'additionalProperties': False,

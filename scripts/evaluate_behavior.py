@@ -121,7 +121,9 @@ def run_command(command: list[str], input_text: str, timeout_seconds: float, *, 
 
 def read_structured_result(output: Path, scenario_id: str, *, capture=None) -> dict:
     try:
-        result = json.loads(capture.read_result() if capture else output.read_text())
+        result = native_transport.parse_final_result(capture.read_result() if capture else output.read_text())
+    except native_transport.InvalidFinalResult:
+        raise
     except (OSError, ValueError) as error:
         raise BehaviorEvaluationError(
             f"{scenario_id}: cannot read structured result: {error}"
@@ -200,12 +202,14 @@ def run_scenario_with_replacement(
     *,
     replacement_available: bool,
     evidence_dir=None, review_inputs=None, reasoning_effort=None,
-) -> tuple[dict | None, int, bool, BehaviorEvaluationError | None]:
+) -> tuple[dict | None, int, bool, BehaviorEvaluationError | native_transport.InvalidFinalResult | None]:
     """Return one usable result, allowing one fresh operational replacement."""
     try:
         return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
                             **({"review_inputs": review_inputs} if review_inputs is not None else {}),
                             **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})), 1, False, None
+    except native_transport.InvalidFinalResult as invalid:
+        return None, 1, False, invalid
     except BehaviorEvaluationError as first_error:
         if not replacement_available:
             return None, 1, False, first_error
@@ -214,6 +218,8 @@ def run_scenario_with_replacement(
         return run_scenario(repo, scenario, model, timeout_seconds, evidence_dir=evidence_dir,
                             **({"review_inputs": review_inputs} if review_inputs is not None else {}),
                             **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {})), 2, True, None
+    except native_transport.InvalidFinalResult as invalid:
+        return None, 2, True, invalid
     except BehaviorEvaluationError as replacement_error:
         error = BehaviorEvaluationError(
             f"initial attempt failed: {first_error_text}; "
@@ -248,7 +254,8 @@ def evaluate_scenarios(
             replacements += 1
         if error is not None:
             failures.append(str(error))
-            print(f"{scenario['id']}: no usable result after {attempts} attempt(s)")
+            label = "invalid final result" if isinstance(error, native_transport.InvalidFinalResult) else "no usable result"
+            print(f"{scenario['id']}: {label} after {attempts} attempt(s)")
             continue
         usable_results += 1
         shape_errors = native_transport.result_errors(result, load(SCHEMA))

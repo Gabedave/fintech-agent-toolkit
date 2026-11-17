@@ -199,6 +199,34 @@ class RetainedResultBindingTests(unittest.TestCase):
                                          None, 5, evidence_dir=evidence_dir)
         return review.run_review(review.load_suite()[0], "broken", 5, evidence_dir=evidence_dir)[0]
 
+    def test_ambiguous_final_json_is_terminal_without_replacement(self):
+        payloads = (b'{"playbook":"bug-fix","playbook":"none"}',
+                    b'{"nested":[{"decision":1,"decision":2}]}',
+                    b'{"value":NaN}', b'{"value":Infinity}', b'{"value":-Infinity}')
+        for kind in ("behavior", "review"):
+            for ending in ("succeeded", "nonzero", "timed_out"):
+                for raw in payloads:
+                    with self.subTest(kind=kind, ending=ending, raw=raw), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        run = evidence.create_run(root / "evidence", "invalid-final", {})
+                        with self.captured_cli(raw, ending) as attempts:
+                            if kind == "behavior":
+                                result, count, replaced, error = behavior.run_scenario_with_replacement(
+                                    root, {"id": "invalid-final", "prompt": "route"}, None, 5,
+                                    replacement_available=True, evidence_dir=run)
+                            else:
+                                result, _, count, replaced, error = review.run_review_with_replacement(
+                                    review.load_suite()[0], "broken", 5,
+                                    replacement_available=True, evidence_dir=run)
+                        self.assertIsNone(result)
+                        self.assertIsNotNone(error)
+                        self.assertEqual((1, False), (count, replaced))
+                        self.assertEqual(1, len(attempts))
+                        self.assertEqual(raw, (attempts[0].path / "final-result.json").read_bytes())
+                        with self.assertRaisesRegex(ValueError, "final JSON"):
+                            attempts[0].mark_usable(json.loads(raw))
+                        self.assertFalse((attempts[0].path / "result-status.json").exists())
+
     def test_callers_consume_sealed_bytes_after_live_output_swap_for_every_process_outcome(self):
         raw = b' {"verdict":"not_ready", "playbook":"retained"}\n'
         for kind in ("behavior", "review"):
