@@ -119,6 +119,82 @@ class NativeReviewInputsTests(unittest.TestCase):
                 with mock.patch.dict(globals(), {'ROOT': candidate}), self.assertRaisesRegex(ValueError, 'plugin.*inventory'):
                     self.setup_context(directory)
 
+    def test_lock_uses_git_modes_but_evidence_keeps_exact_modes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            candidate = directory / 'candidate'
+            shutil.copytree(ROOT, candidate, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+            lock = json.loads((candidate / 'foundation-lock.json').read_bytes())
+            for name, row in lock['files'].items():
+                (candidate / name).chmod(int(row['mode'], 8) | 0o020)
+            with mock.patch.dict(globals(), {'ROOT': candidate}):
+                inputs, release, suite, handle, env = self.setup_context(directory)
+            self.assertEqual({'0664', '0775'}, {row['mode'] for row in handle.release['installed_files'].values()})
+            self.assertEqual(inputs._tree_digest(handle.release['installed_files']), handle.release['installed_tree_sha256'])
+            for row in handle.release['source_index']:
+                self.assertEqual(format(Path(row['original_path']).stat().st_mode & 0o7777, '04o'), row['mode'])
+            plugin_file = next(candidate / name for name, row in lock['files'].items()
+                               if name.startswith('plugins/') and row['mode'] == '0644')
+            plugin_file.chmod(0o644)
+            context = release / 'review-inputs/context.json'
+            with self.assertRaisesRegex(ValueError, 'live public source differs'):
+                inputs.load_suite_context(context, evidence.digest(context.read_bytes()), suite, env, 'changed-mode',
+                                          candidate_root=candidate)
+
+    def test_locked_plugin_mode_type_and_installation_drift_stay_rejected(self):
+        import native_review_inputs as inputs
+        for mutation in ('executable', 'special-mode', 'symlink', 'installed-mode'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                candidate = directory / 'candidate'
+                shutil.copytree(ROOT, candidate, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+                plugin = candidate / 'plugins' / json.loads(behavior.MANIFEST.read_text())['name']
+                manifest = plugin / '.codex-plugin/plugin.json'
+                if mutation in ('executable', 'special-mode'):
+                    manifest.chmod(0o744 if mutation == 'executable' else 0o1644)
+                elif mutation == 'symlink':
+                    target = directory / 'manifest.json'
+                    manifest.rename(target)
+                    manifest.symlink_to(target)
+                copytree = shutil.copytree
+                def copy_with_installed_mode(source, dest, *args, **kwargs):
+                    result = copytree(source, dest, *args, **kwargs)
+                    if mutation == 'installed-mode' and source == plugin:
+                        (Path(dest) / '.codex-plugin/plugin.json').chmod(0o664)
+                    return result
+                with mock.patch.dict(globals(), {'ROOT': candidate}), mock.patch.object(
+                        shutil, 'copytree', side_effect=copy_with_installed_mode), mock.patch.object(
+                        inputs, 'capture_model_probe') as probe, self.assertRaises((ValueError, OSError)):
+                    self.setup_context(directory, probe=True)
+                probe.assert_not_called()
+
+    def test_source_directory_symlinks_fail_before_probe(self):
+        import native_review_inputs as inputs
+        for folder in ('scripts', 'tests/review-quality'):
+            for location in ('root', 'nested', 'ancestor'):
+                if location == 'ancestor' and '/' not in folder:
+                    continue
+                with self.subTest(folder=folder, location=location), tempfile.TemporaryDirectory() as temp:
+                    directory = Path(temp)
+                    candidate = directory / 'candidate'
+                    shutil.copytree(ROOT, candidate, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+                    target = directory / 'external'
+                    source = candidate / folder
+                    if location in ('root', 'ancestor'):
+                        if location == 'ancestor':
+                            source = source.parent
+                        source.rename(target)
+                        source.symlink_to(target, target_is_directory=True)
+                    else:
+                        target.mkdir()
+                        (target / 'unretained.py').write_text('# synthetic external source\n')
+                        (source / 'linked-source').symlink_to(target, target_is_directory=True)
+                    with mock.patch.dict(globals(), {'ROOT': candidate}), mock.patch.object(
+                            inputs, 'capture_model_probe', return_value=None) as probe, self.assertRaisesRegex(
+                            ValueError, 'symbolic link'):
+                        self.setup_context(directory, probe=True)
+                    probe.assert_not_called()
+
     def test_canonical_callers_retain_pre_post_bytes_after_cleanup_for_all_process_outcomes(self):
         for kind in ('behavior', 'review'):
             for outcome in ('succeeded', 'nonzero', 'timed_out'):

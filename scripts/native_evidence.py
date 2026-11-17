@@ -73,7 +73,8 @@ def create_run(base, kind, bindings):
 def validate_location(base, *protected):
     base = Path(base).expanduser().resolve()
     for path in protected:
-        if base.is_relative_to(Path(path).resolve()):
+        protected_root = Path(path).resolve()
+        if base.is_relative_to(protected_root) or protected_root.is_relative_to(base):
             raise ValueError("evidence directory must be outside candidate and fixture trees")
     return base
 

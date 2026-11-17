@@ -154,6 +154,42 @@ class NativeEvidenceTests(unittest.TestCase):
                                   os.environ.copy(), "review", timeout_seconds=.25, output_path=output)
             self.assertEqual(output.read_text(), "COMPLETE_REVIEW\n")
 
+    def test_evidence_roots_reject_both_containment_directions_and_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            candidate = root / "candidate"
+            candidate.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(candidate, target_is_directory=True)
+            for base, protected in ((root, candidate), (candidate, root), (candidate, candidate),
+                                    (root, alias), (alias / "captures", candidate)):
+                with self.subTest(base=base, protected=protected), self.assertRaises(ValueError):
+                    evidence.validate_location(base, protected)
+            sibling = root / "evidence"
+            self.assertEqual(sibling, evidence.validate_location(sibling, candidate))
+            self.assertFalse(sibling.exists(), "validation must not create evidence")
+
+    def test_behavior_child_environment_excludes_harness_paths_with_and_without_capture(self):
+        for captured in (False, True):
+            with self.subTest(captured=captured), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                keys = ['FINTECH_TOOLKIT_SOURCE', 'FINTECH_VERIFICATION_SOURCE',
+                        'UNRELATED_PROVIDER_TOKEN', 'CODEX_HOME', 'CODEX_SANDBOX_TEST_MARKER']
+                program = 'import os,json;print(json.dumps({k:os.environ.get(k) for k in ' + repr(keys) + '}))'
+                command = [sys.executable, '-B', '-c', program]
+                env = {'FINTECH_TOOLKIT_SOURCE':'/synthetic/build',
+                       'FINTECH_VERIFICATION_SOURCE':'/synthetic/verifier',
+                       'UNRELATED_PROVIDER_TOKEN':'synthetic-only', 'CODEX_HOME':str(root / 'home'),
+                       'CODEX_SANDBOX_TEST_MARKER':'retained'}
+                capture = evidence.NativeAttempt(evidence.create_run(root / 'evidence', 'env', {}),
+                    'env', command, '', review.SCHEMA, None, {}, root / 'result.json') if captured else None
+                with mock.patch.dict(os.environ, env):
+                    code, stdout, _ = behavior.run_command(command, '', 5, capture=capture)
+                    self.assertEqual(os.environ['FINTECH_VERIFICATION_SOURCE'], env['FINTECH_VERIFICATION_SOURCE'])
+                self.assertEqual(code, 0)
+                self.assertEqual(json.loads(stdout), dict.fromkeys(keys[:3]) | {
+                    'CODEX_HOME':str(root / 'home'), 'CODEX_SANDBOX_TEST_MARKER':'retained'})
+
     def test_evidence_cannot_be_written_in_candidate_or_fixture(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):

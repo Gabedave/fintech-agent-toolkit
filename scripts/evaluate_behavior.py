@@ -18,6 +18,7 @@ from process_control import stop_process_group, termination_guard
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from foundation.conformance.runner import REASONING_EFFORTS, reasoning_effort_args
+from foundation.conformance.policy import safe_env
 MANIFEST = ROOT / "plugins" / "fintech-engineering" / ".codex-plugin" / "plugin.json"
 SCENARIOS = ROOT / "tests" / "behavior-scenarios.json"
 SCHEMA = ROOT / "tests" / "behavior-result.schema.json"
@@ -94,8 +95,9 @@ User request:
 
 
 def run_command(command: list[str], input_text: str, timeout_seconds: float, *, capture=None):
+    env = safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     if capture is not None:
-        returncode, stdout, stderr, timed_out = capture.run(command, input_text, timeout_seconds)
+        returncode, stdout, stderr, timed_out = capture.run(command, input_text, timeout_seconds, env=env)
         if timed_out:
             raise BehaviorTimeout
         return returncode, stdout, stderr
@@ -106,6 +108,7 @@ def run_command(command: list[str], input_text: str, timeout_seconds: float, *, 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
             start_new_session=True,
         )
         try:
@@ -879,7 +882,8 @@ def main() -> None:
     ]
     review_inputs = native_review_inputs.load_suite_context(
         args.review_input_context, args.review_input_context_sha256, evidence_dir,
-        os.environ, 'legacy-decisions', candidate_root=ROOT) if args.review_input_context else None
+        safe_env(os.environ.get("CODEX_HOME", Path.home() / ".codex")),
+        'legacy-decisions', candidate_root=ROOT) if args.review_input_context else None
     failures, advisories, replacements, usable_results = evaluate_scenarios(
         repo, scenarios, args.model, args.timeout_seconds, evidence_dir=evidence_dir,
         **({"review_inputs": review_inputs} if review_inputs is not None else {}),

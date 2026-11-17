@@ -287,7 +287,10 @@ def prepare_release_context(evidence_dir, candidate, profile_path, home, env, ca
         raise ValueError('generated plugin path inventory differs from foundation lock')
     for name, expected in lock['files'].items():
         _, actual = _read_relative(candidate, name)
-        if any(actual[key] != expected[key] for key in ('sha256', 'mode')):
+        mode = int(actual['mode'], 8)
+        canonical_mode = '0755' if mode & stat.S_IXUSR else '0644'
+        if (mode & (stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX)
+                or actual['sha256'] != expected['sha256'] or canonical_mode != expected['mode']):
             raise ValueError('generated candidate file differs from foundation lock')
     (root / 'catalog.json').write_bytes(catalog_bytes)
     (root / 'catalog.json').chmod(0o600)
@@ -303,7 +306,15 @@ def prepare_release_context(evidence_dir, candidate, profile_path, home, env, ca
              candidate / '.agents/plugins/marketplace.json': 'marketplace-source'}
     for folder, role in (('scripts', 'harness-source'), ('foundation/conformance', 'conformance-source'),
                          ('tests/review-quality', 'review-fixture-source')):
-        for path in (candidate / folder).rglob('*'):
+        source_root = candidate / folder
+        for parent in (source_root, *source_root.parents):
+            if parent == candidate:
+                break
+            if parent.is_symlink():
+                raise ValueError('review source contains a symbolic link: ' + str(parent))
+        for path in source_root.rglob('*'):
+            if path.is_symlink():
+                raise ValueError('review source contains a symbolic link: ' + str(path))
             if path.is_file() and '__pycache__' not in path.parts and path.suffix in {'.py', '.json', '.md'}:
                 paths[path] = role
     for name in ('behavior-scenarios.json', 'behavior-result.schema.json', 'publication-result.schema.json'):
