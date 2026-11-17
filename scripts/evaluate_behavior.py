@@ -1,12 +1,35 @@
 #!/usr/bin/env python3
 
+# Use only built-in/frozen modules until executable source trees are checked.
+import os
+import sys
+
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+    sys.pycache_prefix = None
+    _root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    def _source_walk_error(error):
+        raise SystemExit("ERROR: source-only verification cannot inspect source tree: " + str(error))
+    for _folder in ('scripts', 'foundation', 'tests/review-quality'):
+        _tree = os.path.join(_root, _folder)
+        _parent = _tree
+        while _parent != _root:
+            if os.path.islink(_parent):
+                raise SystemExit("ERROR: source-only verification rejects symbolic link: " + _parent)
+            _parent = os.path.dirname(_parent)
+        for _directory, _dirs, _files in os.walk(_tree, followlinks=False, onerror=_source_walk_error):
+            for _name in _dirs + _files:
+                _path = os.path.join(_directory, _name)
+                if os.path.islink(_path) or os.path.splitext(_name)[1].lower() in {'.pyc', '.pyo'}:
+                    raise SystemExit("ERROR: source-only verification requires a clean source tree; remove or reconcile artifact: " + _path)
+
 import argparse
 import json
-import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 import native_evidence
 import native_review_inputs
@@ -15,7 +38,6 @@ import native_transport
 from process_control import stop_process_group, termination_guard
 
 
-ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from foundation.conformance.runner import REASONING_EFFORTS, reasoning_effort_args
 from foundation.conformance.policy import safe_env

@@ -247,6 +247,10 @@ def _tree_digest(files):
 def prepare_release_context(evidence_dir, candidate, profile_path, home, env, catalog_bytes, *, installed_at_ns,
                             probe_model=False, requested_model=None, timeout=120, reasoning_effort=None):
     candidate, profile_path, home = Path(candidate).resolve(), Path(profile_path).resolve(), Path(home).resolve()
+    for folder in ('scripts', 'foundation', 'tests/review-quality'):
+        for path in (candidate / folder).rglob('*'):
+            if path.suffix.lower() in {'.pyc', '.pyo'}:
+                raise ValueError('source-only review context rejects bytecode artifact: ' + str(path))
     root = Path(evidence_dir) / 'review-inputs'
     root.mkdir(mode=0o700)
     profile = json.loads(profile_path.read_bytes())

@@ -43,7 +43,10 @@ Add a short root `AGENTS.md` identifying the product, its repositories and relea
 
 ## Validate
 
+Verification requires cache-free harness source trees. Set `PYTHONDONTWRITEBYTECODE=1` before development and test commands. The source-file release and evaluator entrypoints reject existing `.pyc`/`.pyo` artifacts before importing repository code; `-B` alone does not prevent Python from executing an existing cache. Reconcile reported artifacts or use a clean checkout; verification never deletes them.
+
 ```sh
+export PYTHONDONTWRITEBYTECODE=1
 python3 scripts/check_foundation.py
 python3 scripts/validate.py
 python3 scripts/evaluate.py

@@ -195,6 +195,25 @@ class NativeReviewInputsTests(unittest.TestCase):
                         self.setup_context(directory, probe=True)
                     probe.assert_not_called()
 
+    def test_review_context_rejects_bytecode_before_probe(self):
+        import native_review_inputs as inputs
+        folders = ['scripts', 'tests/review-quality']
+        if (ROOT / 'foundation').is_dir():
+            folders.extend(['foundation', 'foundation/conformance'])
+        for folder in folders:
+            with self.subTest(folder=folder), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                candidate = directory / 'candidate'
+                shutil.copytree(ROOT, candidate, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+                cache = candidate / folder / '__pycache__/unreviewed.cpython-311.pyc'
+                cache.parent.mkdir(exist_ok=True)
+                cache.write_bytes(b'synthetic executable cache artifact')
+                with mock.patch.dict(globals(), {'ROOT': candidate}), mock.patch.object(
+                        inputs, 'capture_model_probe') as probe, self.assertRaisesRegex(ValueError, 'bytecode artifact'):
+                    self.setup_context(directory, probe=True)
+                probe.assert_not_called()
+                self.assertTrue(cache.exists())
+
     def test_canonical_callers_retain_pre_post_bytes_after_cleanup_for_all_process_outcomes(self):
         for kind in ('behavior', 'review'):
             for outcome in ('succeeded', 'nonzero', 'timed_out'):
