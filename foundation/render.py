@@ -194,7 +194,10 @@ def generate(profile, commit):
     source_files = []
     bundle_files = []
     for path in sorted(FOUNDATION.rglob("*")):
-        if "__pycache__" in path.relative_to(FOUNDATION).parts:
+        parts = path.relative_to(FOUNDATION).parts
+        # Verification has its own source pin and per-run byte/mode digest.
+        # Changes to its fixtures or harness do not change installed skills.
+        if parts[0] == "conformance" or "__pycache__" in parts:
             continue
         no_symlinks(path)
         if not path.is_dir() and not path.is_file():
@@ -251,7 +254,8 @@ def generate(profile, commit):
     })
     modes[".agents/plugins/marketplace.json"] = "0644"
     foundation = {"repository": FOUNDATION_REPOSITORY, "version": version["version"],
-                  "commit": commit, "digest": digest(canonical(source_hashes))}
+                  "commit": commit, "digest": digest(canonical(source_hashes)),
+                  "digest_scope": "plugin-build-v1"}
     identity = {
         "schema_version": 2, "canonical_repository": profile["repository_url"],
         "source_commit": commit, "plugin_name": profile["plugin_name"],

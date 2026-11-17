@@ -1,5 +1,13 @@
 # Observed-action conformance
 
+This is development and release tooling, not part of the installed plugin.
+Maintain the harness and its regression tests in the canonical toolkit repository.
+Adopters may execute this exact pinned source from an external checkout; they must
+still verify their own generated and installed candidate. The plugin build digest
+excludes this directory. Each run separately binds the complete harness byte/mode
+map, fixtures, profile and candidate; a changed verifier is not evidence for an
+earlier run. Keep build and verification source pins distinct when only tests change.
+
 ## Ordinary native read-only capture
 
 `native_capture.prepare_read_only(...)` prepares a fresh owned fixture and neutral

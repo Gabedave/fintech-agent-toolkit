@@ -176,12 +176,25 @@ class FoundationGeneration(unittest.TestCase):
         skill.write_text(skill.read_text() + "Changed foundation byte.\n")
         self.invoke("--check", success=False)
 
-    def test_check_binds_conformance_code_and_fixture_bytes(self):
+    def test_conformance_identity_is_independent_of_generated_plugin(self):
+        from foundation.conformance.runner import tree_hash
         harness = self.foundation / "conformance" / "runner.py"
         self.write(harness, {"synthetic": "harness boundary"})
         self.invoke()
+        before = self.files()
+        verification_before = tree_hash(harness.parent)
         harness.write_text("changed harness bytes\n")
-        self.invoke("--check", success=False)
+        self.invoke("--check")
+        self.assertEqual(before, self.files())
+        self.assertNotEqual(verification_before, tree_hash(harness.parent))
+        self.write(harness.parent / "cases.json", {"changed": "fixture"})
+        self.invoke("--check")
+        self.assertEqual(before, self.files())
+        fixture_digest = tree_hash(harness.parent)
+        harness.chmod(0o755)
+        self.assertNotEqual(fixture_digest, tree_hash(harness.parent))
+        self.assertEqual(json.loads(before["foundation-lock.json"])["foundation"]["digest_scope"],
+                         "plugin-build-v1")
 
     def test_installed_plugin_carries_independently_checkable_content_provenance(self):
         self.invoke()
@@ -232,7 +245,7 @@ class FoundationGeneration(unittest.TestCase):
         self.assertNotEqual(first["profile_digest"], second["profile_digest"])
         self.assertNotEqual(first["generated_tree_digest"], second["generated_tree_digest"])
 
-    def test_bytecode_caches_are_excluded_but_conformance_sources_are_bound(self):
+    def test_bytecode_caches_are_excluded_but_build_sources_are_bound(self):
         self.invoke()
         before = self.files()
         self.write(self.foundation / "__pycache__/runner.pyc", {"synthetic": "cache"})
